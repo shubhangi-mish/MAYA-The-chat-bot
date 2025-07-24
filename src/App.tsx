@@ -8,6 +8,14 @@ import ProductionMonitor from './components/ProductionMonitor';
 
 function App() {
   const [activeTab, setActiveTab] = useState('chat');
+  const [messages, setMessages] = useState([
+    {
+      id: '1',
+      content: "Hey there! I'm Maya! 🌱 I'm so excited to chat with you about sustainable living, yoga, and all things plant-based! What's on your mind today?",
+      sender: 'maya',
+      timestamp: new Date(),
+    },
+  ]);
 
   const tabs = [
     { id: 'chat', label: 'Chat with Maya', icon: MessageCircle },
@@ -20,17 +28,17 @@ function App() {
   const renderActiveComponent = () => {
     switch (activeTab) {
       case 'chat':
-        return <ChatInterface />;
+        return <ChatInterface messages={messages} setMessages={setMessages} />;
       case 'prompts':
         return <PromptManager />;
       case 'evaluation':
-        return <EvaluationFramework />;
+        return <EvaluationFramework messages={messages} />;
       case 'testing':
         return <TestScenarios />;
       case 'monitoring':
         return <ProductionMonitor />;
       default:
-        return <ChatInterface />;
+        return <ChatInterface messages={messages} setMessages={setMessages} />;
     }
   };
 

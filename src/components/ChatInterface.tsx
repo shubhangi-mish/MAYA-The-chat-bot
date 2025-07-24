@@ -8,15 +8,12 @@ interface Message {
   timestamp: Date;
 }
 
-const ChatInterface: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: "Hey there! I'm Maya! 🌱 I'm so excited to chat with you about sustainable living, yoga, and all things plant-based! What's on your mind today?",
-      sender: 'maya',
-      timestamp: new Date(),
-    },
-  ]);
+interface ChatInterfaceProps {
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+}
+
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) => {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<'gemini' | 'openai' | 'claude'>('gemini');

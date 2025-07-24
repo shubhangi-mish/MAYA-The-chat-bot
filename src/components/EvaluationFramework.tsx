@@ -1,7 +1,18 @@
 import React, { useState } from 'react';
 import { Play, BarChart3, TrendingUp, Award, AlertCircle } from 'lucide-react';
 
-const EvaluationFramework: React.FC = () => {
+interface Message {
+  id: string;
+  content: string;
+  sender: 'user' | 'maya';
+  timestamp: Date;
+}
+
+interface EvaluationFrameworkProps {
+  messages: Message[];
+}
+
+const EvaluationFramework: React.FC<EvaluationFrameworkProps> = ({ messages }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<any>(null);
 
@@ -72,6 +83,63 @@ const EvaluationFramework: React.FC = () => {
     ]
   };
 
+  const inferThemes = (messages: Message[]): string[] => {
+    const themeKeywords = [
+      'yoga', 'plant-based', 'sustainable', 'eco', 'mindful', 'minimalism', 'mental health',
+      'environment', 'conscious', 'cooking', 'recipe', 'vegan', 'beginner', 'growth', 'authenticity',
+      'collaboration', 'brand', 'partnership', 'professional', 'lifestyle', 'consumption', 'wellness'
+    ];
+    const text = messages.map(m => m.content.toLowerCase()).join(' ');
+    return themeKeywords.filter(theme => text.includes(theme));
+  };
+
+  const evaluateCurrentConversation = async () => {
+    if (!messages || messages.length === 0) return;
+    setIsRunning(true);
+    setResults(null);
+    // Find the last user message
+    const lastUserMsg = [...messages].reverse().find(m => m.sender === 'user');
+    if (!lastUserMsg) {
+      setIsRunning(false);
+      return;
+    }
+    // Prepare the scenario
+    const scenario = {
+      name: 'Current Conversation',
+      user_message: lastUserMsg.content,
+      expected_themes: inferThemes(messages),
+      conversation_history: messages.map(m => ({
+        role: m.sender === 'user' ? 'user' : 'maya',
+        content: m.content
+      }))
+    };
+    try {
+      const response = await fetch('http://localhost:8000/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test_scenarios: [scenario] })
+      });
+      const data = await response.json();
+      if (data.evaluation_results && data.evaluation_results[0] && data.evaluation_results[0].scores) {
+        const r = data.evaluation_results[0];
+        setResults({
+          ...r,
+          overall_score: r.scores.overall,
+          consistency: r.scores.consistency,
+          engagement: r.scores.engagement,
+          brand_alignment: r.scores.brand_alignment,
+          authenticity: r.scores.authenticity,
+        });
+      } else {
+        setResults({ error: 'Malformed or incomplete evaluation results received from backend.' });
+      }
+    } catch (error) {
+      setResults({ error: 'Evaluation failed.' });
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
   const runEvaluation = async () => {
     setIsRunning(true);
     
@@ -101,19 +169,19 @@ const EvaluationFramework: React.FC = () => {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-white">Evaluation Framework</h2>
         <button
-          onClick={runEvaluation}
+          onClick={evaluateCurrentConversation}
           disabled={isRunning}
           className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg text-white font-medium hover:from-purple-600 hover:to-pink-600 transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
         >
           {isRunning ? (
             <>
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Running...
+              Evaluating...
             </>
           ) : (
             <>
-              <Play className="w-4 h-4" />
-              Run Evaluation
+              <BarChart3 className="w-4 h-4" />
+              Evaluate Current Conversation
             </>
           )}
         </button>
@@ -139,81 +207,92 @@ const EvaluationFramework: React.FC = () => {
 
       {/* Results */}
       {results && (
-        <div className="space-y-6">
-          {/* Overall Score */}
-          <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
-            <div className="flex items-center gap-4 mb-4">
-              <Award className="w-8 h-8 text-yellow-400" />
-              <div>
-                <h3 className="text-xl font-bold text-white">Overall Performance</h3>
-                <p className="text-slate-400">Comprehensive evaluation results</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="text-center">
-                <div className={`text-3xl font-bold ${getScoreColor(results.overall_score)}`}>
-                  {results.overall_score}
-                </div>
-                <div className="text-sm text-slate-400">Overall</div>
-              </div>
-              <div className="text-center">
-                <div className={`text-2xl font-bold ${getScoreColor(results.consistency)}`}>
-                  {results.consistency}
-                </div>
-                <div className="text-sm text-slate-400">Consistency</div>
-              </div>
-              <div className="text-center">
-                <div className={`text-2xl font-bold ${getScoreColor(results.engagement)}`}>
-                  {results.engagement}
-                </div>
-                <div className="text-sm text-slate-400">Engagement</div>
-              </div>
-              <div className="text-center">
-                <div className={`text-2xl font-bold ${getScoreColor(results.brand_alignment)}`}>
-                  {results.brand_alignment}
-                </div>
-                <div className="text-sm text-slate-400">Brand Alignment</div>
-              </div>
-              <div className="text-center">
-                <div className={`text-2xl font-bold ${getScoreColor(results.authenticity)}`}>
-                  {results.authenticity}
-                </div>
-                <div className="text-sm text-slate-400">Authenticity</div>
-              </div>
-            </div>
+        results.error ? (
+          <div className="bg-red-700/30 rounded-xl border border-red-600/50 p-6 text-red-200">
+            <h3 className="text-lg font-bold">Evaluation Error</h3>
+            <p>{results.error}</p>
           </div>
-
-          {/* Test Results */}
-          <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-purple-400" />
-              Test Scenario Results
-            </h3>
-            
-            <div className="space-y-4">
-              {results.test_results.map((test: any, index: number) => (
-                <div key={index} className="bg-slate-800/50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-white">{test.scenario}</h4>
-                    <div className={`px-3 py-1 rounded-full text-sm font-medium ${getScoreBg(test.score)} ${getScoreColor(test.score)}`}>
-                      {test.score}/100
-                    </div>
+        ) : (results.overall_score !== undefined && results.consistency !== undefined && results.engagement !== undefined && results.brand_alignment !== undefined && results.authenticity !== undefined ? (
+          <div className="space-y-6">
+            {/* Overall Score */}
+            <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <Award className="w-8 h-8 text-yellow-400" />
+                <div>
+                  <h3 className="text-xl font-bold text-white">Overall Performance</h3>
+                  <p className="text-slate-400">Comprehensive evaluation results</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="text-center">
+                  <div className={`text-3xl font-bold ${getScoreColor(results.overall_score)}`}>
+                    {results.overall_score}
                   </div>
-                  <p className="text-sm text-slate-300 mb-2">{test.feedback}</p>
-                  {test.issues.length > 0 && (
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
-                      <div className="text-sm text-yellow-400">
-                        {test.issues.join(', ')}
-                      </div>
-                    </div>
-                  )}
+                  <div className="text-sm text-slate-400">Overall</div>
                 </div>
-              ))}
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${getScoreColor(results.consistency)}`}>
+                    {results.consistency}
+                  </div>
+                  <div className="text-sm text-slate-400">Consistency</div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${getScoreColor(results.engagement)}`}>
+                    {results.engagement}
+                  </div>
+                  <div className="text-sm text-slate-400">Engagement</div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${getScoreColor(results.brand_alignment)}`}>
+                    {results.brand_alignment}
+                  </div>
+                  <div className="text-sm text-slate-400">Brand Alignment</div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${getScoreColor(results.authenticity)}`}>
+                    {results.authenticity}
+                  </div>
+                  <div className="text-sm text-slate-400">Authenticity</div>
+                </div>
+              </div>
             </div>
+            {/* Test Results */}
+            {results.test_results && Array.isArray(results.test_results) && (
+              <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-purple-400" />
+                  Test Scenario Results
+                </h3>
+                <div className="space-y-4">
+                  {results.test_results.map((test: any, index: number) => (
+                    <div key={index} className="bg-slate-800/50 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-white">{test.scenario}</h4>
+                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${getScoreBg(test.score)} ${getScoreColor(test.score)}`}>
+                          {test.score}/100
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-300 mb-2">{test.feedback}</p>
+                      {test.issues.length > 0 && (
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                          <div className="text-sm text-yellow-400">
+                            {test.issues.join(', ')}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        ) : (
+          <div className="bg-red-700/30 rounded-xl border border-red-600/50 p-6 text-red-200">
+            <h3 className="text-lg font-bold">Evaluation Error</h3>
+            <p>Malformed or incomplete evaluation results received from backend.</p>
+          </div>
+        ))
       )}
     </div>
   );

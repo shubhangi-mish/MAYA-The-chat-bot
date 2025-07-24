@@ -56,6 +56,7 @@ const TestScenarios: React.FC = () => {
 
   const [selectedScenario, setSelectedScenario] = useState<TestScenario | null>(null);
   const [testResult, setTestResult] = useState<string>('');
+  const [evaluationResult, setEvaluationResult] = useState<any>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -63,6 +64,7 @@ const TestScenarios: React.FC = () => {
     setSelectedScenario(scenario);
     setIsRunning(true);
     setTestResult('');
+    setEvaluationResult(null);
 
     try {
       const response = await fetch('http://localhost:8000/chat', {
@@ -72,15 +74,45 @@ const TestScenarios: React.FC = () => {
         },
         body: JSON.stringify({
           message: scenario.user_message,
-          conversation_history: [] // This is fine, but ensure if you ever add history, it uses objects with 'role' and 'content' keys
+          conversation_history: []
         }),
       });
-
       const data = await response.json();
       setTestResult(data.response);
+
+      // Now evaluate the response
+      const evalScenario = {
+        name: scenario.name,
+        user_message: scenario.user_message,
+        expected_themes: scenario.expected_themes,
+        conversation_history: [
+          { role: 'user', content: scenario.user_message },
+          { role: 'maya', content: data.response }
+        ]
+      };
+      const evalRes = await fetch('http://localhost:8000/evaluate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ test_scenarios: [evalScenario] })
+      });
+      const evalData = await evalRes.json();
+      if (evalData.evaluation_results && evalData.evaluation_results[0] && evalData.evaluation_results[0].scores) {
+        const r = evalData.evaluation_results[0];
+        setEvaluationResult({
+          ...r,
+          overall_score: r.scores.overall,
+          consistency: r.scores.consistency,
+          engagement: r.scores.engagement,
+          brand_alignment: r.scores.brand_alignment,
+          authenticity: r.scores.authenticity,
+        });
+      } else {
+        setEvaluationResult({ error: 'Malformed or incomplete evaluation results received from backend.' });
+      }
     } catch (error) {
       console.error('Error running scenario:', error);
       setTestResult('Error: Could not connect to backend service.');
+      setEvaluationResult({ error: 'Evaluation failed.' });
     } finally {
       setIsRunning(false);
     }
@@ -199,10 +231,45 @@ const TestScenarios: React.FC = () => {
                     ) : testResult ? (
                       <p className="text-sm text-slate-300 leading-relaxed">{testResult}</p>
                     ) : (
-                      <p className="text-sm text-slate-500 italic">No response yet. Run a test scenario to see results.</p>
+                      <p className="text-sm text-slate-400 italic">No response yet.</p>
                     )}
                   </div>
                 </div>
+                {/* Evaluation Results */}
+                {evaluationResult && (
+                  evaluationResult.error ? (
+                    <div className="bg-red-700/30 rounded-xl border border-red-600/50 p-4 text-red-200 mt-4">
+                      <h5 className="text-sm font-bold">Evaluation Error</h5>
+                      <p>{evaluationResult.error}</p>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4 mt-4">
+                      <h5 className="text-sm font-bold text-white mb-2">Evaluation Results</h5>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="text-center">
+                          <div className="text-3xl font-bold text-yellow-400">{evaluationResult.overall_score}</div>
+                          <div className="text-sm text-slate-400">Overall</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-400">{evaluationResult.consistency}</div>
+                          <div className="text-sm text-slate-400">Consistency</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-400">{evaluationResult.engagement}</div>
+                          <div className="text-sm text-slate-400">Engagement</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-purple-400">{evaluationResult.brand_alignment}</div>
+                          <div className="text-sm text-slate-400">Brand Alignment</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-pink-400">{evaluationResult.authenticity}</div>
+                          <div className="text-sm text-slate-400">Authenticity</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                )}
                 
                 {testResult && (
                   <div>

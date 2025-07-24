@@ -1,7 +1,7 @@
 import os
 import asyncio
 from typing import List, Dict, Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -9,6 +9,10 @@ import google.generativeai as genai
 from datetime import datetime
 import json
 from google import genai
+from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="Maya AI Character Backend", version="1.0.0")
 
@@ -62,6 +66,8 @@ BRAND VOICE:
 - "What I've learned on my journey is..."
 - Focus on progress over perfection"""
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
+
 class ChatMessage(BaseModel):
     message: str
     conversation_history: List[Dict[str, str]] = []
@@ -77,36 +83,50 @@ async def root():
     return {"message": "Maya AI Character Backend is running!", "status": "healthy"}
 
 @app.post("/chat")
-async def chat_with_maya(request: ChatMessage):
+async def chat_with_maya(request: Request):
     try:
+        data = await request.json()
+        message = data.get("message", "")
+        conversation_history = data.get("conversation_history", [])
+        model = data.get("model", "gemini")
         # Debug: print incoming conversation_history
-        print("DEBUG: conversation_history received:", request.conversation_history)
+        print("DEBUG: conversation_history received:", conversation_history)
         # Build conversation context
         conversation_context = ""
-        for msg in request.conversation_history[-5:]:  # Keep last 5 messages for context
+        for msg in conversation_history[-5:]:  # Keep last 5 messages for context
             role = "User" if msg["role"] == "user" else "Maya"
             conversation_context += f"{role}: {msg['content']}\n"
-        
         # Create the full prompt
         full_prompt = f"""{CURRENT_PROMPT}
 
 Previous conversation:
 {conversation_context}
 
-User: {request.message}
+User: {message}
 
 Maya:"""
-
-        # Generate response using Gemini (new API style)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=full_prompt
-        )
-        
-        if not response.text:
+        # Model dispatch
+        if model == "gemini":
+            response = client.models.generate_content(
+                model="gemini-2.5-flash", contents=full_prompt
+            )
+            response_text = response.text.strip() if response.text else ""
+        elif model == "openai":
+            openai_client = OpenAI(api_key=OPENAI_API_KEY)
+            openai_response = openai_client.responses.create(
+                model="gpt-4o-mini",
+                input=full_prompt
+            )
+            response_text = openai_response.output_text.strip() if hasattr(openai_response, 'output_text') else str(openai_response)
+        elif model == "claude":
+            # TODO: Implement Claude call here using CLAUDE_API_KEY
+            # Example: Use anthropic Claude API
+            response_text = "[Claude integration not yet implemented]"
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown model: {model}")
+        if not response_text:
             raise HTTPException(status_code=500, detail="No response generated")
-        
-        return {"response": response.text.strip()}
-    
+        return {"response": response_text}
     except Exception as e:
         print(f"Error in chat endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate response: {str(e)}")
@@ -131,28 +151,38 @@ async def run_evaluation(request: EvaluationRequest):
         results = []
         
         for scenario in request.test_scenarios:
-            # Generate response for each scenario (new API style)
+            # Determine model (default to gemini if not provided)
+            model = scenario.get('model', 'gemini')
+            # Generate response for each scenario
             full_prompt = f"""{CURRENT_PROMPT}
 
 User: {scenario['user_message']}
 
 Maya:"""
-            
-            response = client.models.generate_content(
-                model="gemini-2.5-flash", contents=full_prompt
-            )
-            
+            if model == "gemini":
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash", contents=full_prompt
+                )
+                response_text = response.text.strip() if response.text else ""
+            elif model == "openai":
+                openai_client = OpenAI(api_key=OPENAI_API_KEY)
+                openai_response = openai_client.responses.create(
+                    model="gpt-4o-mini",
+                    input=full_prompt
+                )
+                response_text = openai_response.output_text.strip() if hasattr(openai_response, 'output_text') else str(openai_response)
+            elif model == "claude":
+                # TODO: Implement Claude call here using CLAUDE_API_KEY
+                response_text = "[Claude integration not yet implemented]"
+            else:
+                response_text = "[Unknown model specified]"
             # Simple evaluation metrics (in production, this would be more sophisticated)
-            response_text = response.text.strip() if response.text else ""
-            
-            # Calculate basic scores
+            # Use the generated response_text for evaluation
             consistency_score = evaluate_consistency(response_text, scenario.get('expected_themes', []))
             engagement_score = evaluate_engagement(response_text)
             brand_alignment_score = evaluate_brand_alignment(response_text)
             authenticity_score = evaluate_authenticity(response_text)
-            
             overall_score = (consistency_score + engagement_score + brand_alignment_score + authenticity_score) / 4
-            
             results.append({
                 "scenario": scenario['name'],
                 "user_message": scenario['user_message'],
@@ -166,9 +196,7 @@ Maya:"""
                 },
                 "timestamp": datetime.now().isoformat()
             })
-        
         return {"evaluation_results": results, "status": "success"}
-    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
 
