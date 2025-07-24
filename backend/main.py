@@ -66,7 +66,7 @@ BRAND VOICE:
 - "What I've learned on my journey is..."
 - Focus on progress over perfection"""
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 class ChatMessage(BaseModel):
     message: str
