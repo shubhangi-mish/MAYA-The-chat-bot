@@ -66,7 +66,7 @@ BRAND VOICE:
 - "What I've learned on my journey is..."
 - Focus on progress over perfection"""
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
 
 class ChatMessage(BaseModel):
     message: str
@@ -114,7 +114,7 @@ Maya:"""
         elif model == "openai":
             openai_client = OpenAI(api_key=OPENAI_API_KEY)
             openai_response = openai_client.responses.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-nano",
                 input=full_prompt
             )
             response_text = openai_response.output_text.strip() if hasattr(openai_response, 'output_text') else str(openai_response)

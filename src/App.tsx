@@ -5,10 +5,19 @@ import PromptManager from './components/PromptManager';
 import EvaluationFramework from './components/EvaluationFramework';
 import TestScenarios from './components/TestScenarios';
 import ProductionMonitor from './components/ProductionMonitor';
+import ModelComparison from './components/ModelComparison';
+
+// Add Message type for correct typing
+interface Message {
+  id: string;
+  content: string;
+  sender: 'user' | 'maya';
+  timestamp: Date;
+}
 
 function App() {
   const [activeTab, setActiveTab] = useState('chat');
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       content: "Hey there! I'm Maya! 🌱 I'm so excited to chat with you about sustainable living, yoga, and all things plant-based! What's on your mind today?",
@@ -23,6 +32,7 @@ function App() {
     { id: 'evaluation', label: 'Evaluation', icon: BarChart3 },
     { id: 'testing', label: 'Test Scenarios', icon: TestTube },
     { id: 'monitoring', label: 'Production Monitor', icon: Monitor },
+    { id: 'comparison', label: 'Model Comparison', icon: BarChart3 },
   ];
 
   const renderActiveComponent = () => {
@@ -37,6 +47,8 @@ function App() {
         return <TestScenarios />;
       case 'monitoring':
         return <ProductionMonitor />;
+      case 'comparison':
+        return <ModelComparison messages={messages} />;
       default:
         return <ChatInterface messages={messages} setMessages={setMessages} />;
     }
