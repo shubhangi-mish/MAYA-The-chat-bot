@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Save, Copy, RotateCcw, FileText, CheckCircle } from 'lucide-react';
+
+const PROMPT_ID = 'default';
 
 const PromptManager: React.FC = () => {
   const [currentPrompt, setCurrentPrompt] = useState(`You are Maya, a 25-year-old lifestyle influencer who creates authentic, engaging content about sustainable living, yoga, and plant-based cooking. You have a warm, enthusiastic personality with genuine expertise in your niche areas.
@@ -43,6 +45,76 @@ BRAND VOICE:
     { id: 1, name: 'Current Enhanced Prompt', prompt: currentPrompt, isActive: true },
     { id: 2, name: 'Original Baseline', prompt: originalPrompt, isActive: false },
   ]);
+
+  const [promptHistory, setPromptHistory] = useState<any[]>([]);
+  const [promptScores, setPromptScores] = useState<number[]>([]);
+  const [qualityStatus, setQualityStatus] = useState<{ degraded: boolean; average: number; threshold: number } | null>(null);
+  const [showImprove, setShowImprove] = useState(false);
+  const [improvedPrompt, setImprovedPrompt] = useState('');
+  const [improveReason, setImproveReason] = useState('');
+
+  // Fetch prompt history and scores
+  useEffect(() => {
+    fetch(`/prompt/history/${PROMPT_ID}`)
+      .then(res => res.json())
+      .then(data => setPromptHistory(data.history || []));
+    fetch(`/prompt/quality/${PROMPT_ID}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'ok') setQualityStatus({ degraded: data.degraded, average: data.average, threshold: data.threshold });
+        else setQualityStatus(null);
+        setPromptScores(data.scores || []);
+      });
+  }, []);
+
+  // Trigger improvement if quality is degraded
+  useEffect(() => {
+    if (qualityStatus && qualityStatus.degraded) setShowImprove(true);
+  }, [qualityStatus]);
+
+  // Approve and save improved prompt
+  const handleApprovePrompt = async () => {
+    await fetch('/prompt/version', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt_id: PROMPT_ID,
+        prompt: improvedPrompt,
+        reason: improveReason || 'reflection/manual improvement',
+        improved_from: promptHistory[promptHistory.length - 1]?.prompt || ''
+      })
+    });
+    setShowImprove(false);
+    setImproveReason('');
+    setImprovedPrompt('');
+    // Refresh history
+    fetch(`/prompt/history/${PROMPT_ID}`)
+      .then(res => res.json())
+      .then(data => setPromptHistory(data.history || []));
+  };
+
+  // Trigger reflection-based improvement
+  const handleReflect = async () => {
+    const last = promptHistory[promptHistory.length - 1];
+    if (!last) return;
+    // For demo, use last prompt, dummy response/scores
+    const reflectRes = await fetch('/reflect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: last.prompt,
+        response: 'dummy',
+        scores: { overall: qualityStatus?.average || 0 },
+        model: 'gemini',
+        session_id: 'default',
+        iteration: promptHistory.length
+      })
+    });
+    const reflectData = await reflectRes.json();
+    setImprovedPrompt(reflectData.improved_prompt);
+    setShowImprove(true);
+    setImproveReason('reflection: quality degraded');
+  };
 
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [newPromptName, setNewPromptName] = useState('');
@@ -182,6 +254,75 @@ BRAND VOICE:
           </div>
         </div>
       </div>
+
+      <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
+        <h3 className="text-lg font-semibold text-white mb-2">Prompt History</h3>
+        <ul className="space-y-2">
+          {promptHistory.map((v, i) => (
+            <li key={i} className="bg-slate-800/50 rounded p-3 flex flex-col gap-1">
+              <span className="text-slate-200 text-sm">{v.prompt}</span>
+              <span className="text-xs text-slate-400">{v.reason} ({v.timestamp})</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
+        <h3 className="text-lg font-semibold text-white mb-2">Prompt Quality</h3>
+        <div className="flex items-center gap-4 mb-2">
+          <span className="text-slate-300">Recent Scores:</span>
+          {promptScores.map((s, i) => (
+            <span key={i} className="px-2 py-1 bg-slate-600/50 text-slate-200 rounded text-xs">{s.toFixed(1)}</span>
+          ))}
+        </div>
+        {qualityStatus && (
+          <div className="text-slate-200 text-sm mb-2">
+            Average: <span className="font-bold">{qualityStatus.average.toFixed(1)}</span> &nbsp;|&nbsp;
+            Threshold: <span className="font-bold">{qualityStatus.threshold}</span> &nbsp;|&nbsp;
+            {qualityStatus.degraded ? <span className="text-red-400 font-bold">Quality Degraded</span> : <span className="text-green-400 font-bold">OK</span>}
+          </div>
+        )}
+        {qualityStatus?.degraded && (
+          <button
+            className="px-4 py-2 bg-orange-500 text-white rounded font-semibold mt-2"
+            onClick={handleReflect}
+          >
+            Suggest Improved Prompt (Reflection)
+          </button>
+        )}
+      </div>
+      {showImprove && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl p-8 w-full max-w-lg space-y-4 border border-slate-700 shadow-lg">
+            <h3 className="text-xl font-bold text-white mb-2">Approve Improved Prompt</h3>
+            <textarea
+              className="w-full p-2 rounded bg-slate-700 border border-slate-600 text-white"
+              value={improvedPrompt}
+              onChange={e => setImprovedPrompt(e.target.value)}
+              rows={3}
+            />
+            <input
+              className="w-full p-2 rounded bg-slate-700 border border-slate-600 text-white"
+              value={improveReason}
+              onChange={e => setImproveReason(e.target.value)}
+              placeholder="Reason for update"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                className="px-4 py-2 rounded bg-slate-600 text-white hover:bg-slate-700"
+                onClick={() => setShowImprove(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-green-500 text-white hover:bg-green-600 font-semibold"
+                onClick={handleApprovePrompt}
+              >
+                Approve & Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Save Dialog */}
       {showSaveDialog && (

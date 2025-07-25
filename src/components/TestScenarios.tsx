@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Play, Plus, Edit, Trash2, MessageSquare } from 'lucide-react';
 
 interface TestScenario {
@@ -9,6 +9,8 @@ interface TestScenario {
   expected_themes: string[];
   category: string;
 }
+
+const PROMPT_ID = 'default';
 
 const TestScenarios: React.FC = () => {
   const [scenarios, setScenarios] = useState<TestScenario[]>([
@@ -59,6 +61,7 @@ const TestScenarios: React.FC = () => {
   const [evaluationResult, setEvaluationResult] = useState<any>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [scenarioFeedback, setScenarioFeedback] = useState<{ [id: string]: 'like' | 'dislike' | undefined }>({});
 
   // Track editable themes for each scenario
   const [editableThemes, setEditableThemes] = useState<{ [id: string]: string[] }>(() => {
@@ -90,6 +93,66 @@ const TestScenarios: React.FC = () => {
     }
   };
 
+  // Add scenario form state
+  const [newScenario, setNewScenario] = useState({
+    name: '',
+    description: '',
+    user_message: '',
+    expected_themes: [] as string[],
+    category: 'lifestyle',
+  });
+  const [newThemeInput, setNewThemeInput] = useState('');
+
+  const handleNewThemeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.key === 'Enter' || e.key === ',') && newThemeInput.trim()) {
+      e.preventDefault();
+      setNewScenario(ns => ({
+        ...ns,
+        expected_themes: [...ns.expected_themes, newThemeInput.trim()].filter((t, i, arr) => t && arr.indexOf(t) === i)
+      }));
+      setNewThemeInput('');
+    }
+  };
+  const handleRemoveNewTheme = (theme: string) => {
+    setNewScenario(ns => ({
+      ...ns,
+      expected_themes: ns.expected_themes.filter(t => t !== theme)
+    }));
+  };
+  const handleAddScenario = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newScenario.name.trim() || !newScenario.user_message.trim()) return;
+    const id = Date.now().toString();
+    const scenario: TestScenario = {
+      id,
+      name: newScenario.name.trim(),
+      description: newScenario.description.trim(),
+      user_message: newScenario.user_message.trim(),
+      expected_themes: [...newScenario.expected_themes],
+      category: newScenario.category
+    };
+    setScenarios(prev => [...prev, scenario]);
+    setEditableThemes(prev => ({ ...prev, [id]: [...scenario.expected_themes] }));
+    setNewScenario({ name: '', description: '', user_message: '', expected_themes: [], category: 'lifestyle' });
+    setNewThemeInput('');
+    setShowAddForm(false);
+  };
+
+  const [currentPrompt, setCurrentPrompt] = useState('');
+
+  // Fetch the latest prompt from PromptManager
+  const fetchCurrentPrompt = async () => {
+    const res = await fetch(`/prompt/history/${PROMPT_ID}`);
+    const data = await res.json();
+    const last = data.history && data.history.length > 0 ? data.history[data.history.length - 1].prompt : '';
+    setCurrentPrompt(last);
+  };
+
+  useEffect(() => {
+    fetchCurrentPrompt();
+    // Optionally, set up polling or a websocket for real-time updates
+  }, []);
+
   const runScenario = async (scenario: TestScenario) => {
     setSelectedScenario(scenario);
     setIsRunning(true);
@@ -103,7 +166,7 @@ const TestScenarios: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: scenario.user_message,
+          message: currentPrompt + '\n' + scenario.user_message,
           conversation_history: []
         }),
       });
@@ -112,10 +175,10 @@ const TestScenarios: React.FC = () => {
       // Now evaluate the response
       const evalScenario = {
         name: scenario.name,
-        user_message: scenario.user_message,
+        user_message: currentPrompt + '\n' + scenario.user_message,
         expected_themes: themesToUse,
         conversation_history: [
-          { role: 'user', content: scenario.user_message },
+          { role: 'user', content: currentPrompt + '\n' + scenario.user_message },
           { role: 'maya', content: data.response }
         ]
       };
@@ -143,6 +206,11 @@ const TestScenarios: React.FC = () => {
     }
   };
 
+  const sendScenarioFeedback = (id: string, type: 'like' | 'dislike') => {
+    setScenarioFeedback(fb => ({ ...fb, [id]: type }));
+    // Optionally send feedback to backend here
+  };
+
   const getCategoryColor = (category: string) => {
     const colors: { [key: string]: string } = {
       lifestyle: 'bg-green-500/20 text-green-400',
@@ -166,6 +234,99 @@ const TestScenarios: React.FC = () => {
           Add Scenario
         </button>
       </div>
+
+      {showAddForm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <form
+            className="bg-slate-800 rounded-xl p-8 w-full max-w-lg space-y-4 border border-slate-700 shadow-lg"
+            onSubmit={handleAddScenario}
+          >
+            <h3 className="text-xl font-bold text-white mb-2">Add New Scenario</h3>
+            <div>
+              <label className="block text-slate-300 text-sm mb-1">Name</label>
+              <input
+                className="w-full p-2 rounded bg-slate-700 border border-slate-600 text-white"
+                value={newScenario.name}
+                onChange={e => setNewScenario(ns => ({ ...ns, name: e.target.value }))}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-slate-300 text-sm mb-1">Description</label>
+              <input
+                className="w-full p-2 rounded bg-slate-700 border border-slate-600 text-white"
+                value={newScenario.description}
+                onChange={e => setNewScenario(ns => ({ ...ns, description: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="block text-slate-300 text-sm mb-1">User Message</label>
+              <textarea
+                className="w-full p-2 rounded bg-slate-700 border border-slate-600 text-white"
+                value={newScenario.user_message}
+                onChange={e => setNewScenario(ns => ({ ...ns, user_message: e.target.value }))}
+                required
+                rows={2}
+              />
+            </div>
+            <div>
+              <label className="block text-slate-300 text-sm mb-1">Themes (press Enter or comma to add)</label>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {newScenario.expected_themes.map(theme => (
+                  <span key={theme} className="px-2 py-1 bg-slate-600/50 text-slate-300 rounded text-xs flex items-center gap-1">
+                    {theme}
+                    <button
+                      type="button"
+                      className="ml-1 text-red-400 hover:text-red-600"
+                      onClick={() => handleRemoveNewTheme(theme)}
+                      tabIndex={-1}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <input
+                  type="text"
+                  className="bg-transparent border-none outline-none text-xs text-slate-200 px-1 py-0.5 min-w-[60px]"
+                  placeholder="Add theme"
+                  value={newThemeInput}
+                  onChange={e => setNewThemeInput(e.target.value)}
+                  onKeyDown={handleNewThemeKeyDown}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-slate-300 text-sm mb-1">Category</label>
+              <select
+                className="w-full p-2 rounded bg-slate-700 border border-slate-600 text-white"
+                value={newScenario.category}
+                onChange={e => setNewScenario(ns => ({ ...ns, category: e.target.value }))}
+              >
+                <option value="lifestyle">Lifestyle</option>
+                <option value="cooking">Cooking</option>
+                <option value="boundary-testing">Boundary Testing</option>
+                <option value="authenticity">Authenticity</option>
+                <option value="business">Business</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                type="button"
+                className="px-4 py-2 rounded bg-slate-600 text-white hover:bg-slate-700"
+                onClick={() => setShowAddForm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded bg-green-500 text-white hover:bg-green-600 font-semibold"
+              >
+                Add Scenario
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Scenarios List */}
@@ -285,6 +446,17 @@ const TestScenarios: React.FC = () => {
                   ) : (
                     <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4 mt-4">
                       <h5 className="text-sm font-bold text-white mb-2">Evaluation Results</h5>
+                      <div className="text-xs text-slate-400 mb-2">Combined = 30% Rule-based, 70% Semantic</div>
+                      <div className="flex gap-2 mb-4">
+                        <button
+                          className={`px-2 py-1 rounded ${scenarioFeedback[selectedScenario.id] === 'like' ? 'bg-green-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                          onClick={() => sendScenarioFeedback(selectedScenario.id, 'like')}
+                        >👍 Like</button>
+                        <button
+                          className={`px-2 py-1 rounded ${scenarioFeedback[selectedScenario.id] === 'dislike' ? 'bg-red-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                          onClick={() => sendScenarioFeedback(selectedScenario.id, 'dislike')}
+                        >👎 Dislike</button>
+                      </div>
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                         <div className="text-center">
                           <div className="text-3xl font-bold text-yellow-400">{evaluationResult.overall?.toFixed(1)}</div>

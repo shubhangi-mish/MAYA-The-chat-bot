@@ -1,7 +1,7 @@
 import os
 import asyncio
-from typing import List, Dict, Any
-from fastapi import FastAPI, HTTPException, Request
+from typing import List, Dict, Any, Optional
+from fastapi import FastAPI, HTTPException, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -68,10 +68,20 @@ BRAND VOICE:
 - "What I've learned on my journey is..."
 - Focus on progress over perfection"""
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
 
 # Load embedding model once at startup
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# In-memory session history and feedback store (for demo; use DB in production)
+session_history: Dict[str, List[Dict[str, Any]]] = {}
+feedback_store: List[Dict[str, Any]] = []
+
+# Prompt versioning and history
+prompt_versions: Dict[str, List[Dict[str, Any]]] = {"default": []}  # key: prompt_id, value: list of versions
+prompt_scores: Dict[str, List[float]] = {"default": []}  # key: prompt_id, value: list of recent overall scores
+PROMPT_SCORE_WINDOW = 5
+PROMPT_QUALITY_THRESHOLD = 80.0
 
 class ChatMessage(BaseModel):
     message: str
@@ -169,7 +179,7 @@ Maya:"""
             elif model == "openai":
                 openai_client = OpenAI(api_key=OPENAI_API_KEY)
                 openai_response = openai_client.responses.create(
-                    model="gpt-4o-mini",
+                    model="gpt-4.1-nano",
                     input=full_prompt
                 )
                 response_text = openai_response.output_text.strip() if hasattr(openai_response, 'output_text') else str(openai_response)
@@ -236,11 +246,13 @@ Maya:"""
             engagement_score = evaluate_engagement(response_text)
             brand_alignment_score = evaluate_brand_alignment(response_text)
             authenticity_score = evaluate_authenticity(response_text)
-            # Combined scores for each metric
-            combined_consistency = (consistency_score + semantic_consistency * 100) / 2
-            combined_engagement = (engagement_score + semantic_engagement * 100) / 2
-            combined_brand_alignment = (brand_alignment_score + semantic_brand_alignment * 100) / 2
-            combined_authenticity = (authenticity_score + semantic_authenticity * 100) / 2
+            # Weighted combined scores for each metric (30% rule-based, 70% semantic)
+            w_rule = 0.3
+            w_semantic = 0.7
+            combined_consistency = (consistency_score * w_rule) + (semantic_consistency * 100 * w_semantic)
+            combined_engagement = (engagement_score * w_rule) + (semantic_engagement * 100 * w_semantic)
+            combined_brand_alignment = (brand_alignment_score * w_rule) + (semantic_brand_alignment * 100 * w_semantic)
+            combined_authenticity = (authenticity_score * w_rule) + (semantic_authenticity * 100 * w_semantic)
             # Cumulative scores
             cumulative_semantic = float(np.mean([
                 semantic_consistency,
@@ -350,6 +362,130 @@ def evaluate_authenticity(response: str) -> float:
             score += 3
     
     return min(score, 100.0)
+
+@app.post("/feedback")
+async def submit_feedback(
+    session_id: str = Body(...),
+    model: str = Body(...),
+    response: str = Body(...),
+    feedback: str = Body(...),  # 'like' or 'dislike'
+    prompt: str = Body(...),
+    mode: str = Body(...),      # 'chat', 'manual', 'scenario', etc.
+    scores: Optional[dict] = Body(None)
+):
+    feedback_store.append({
+        "session_id": session_id,
+        "model": model,
+        "response": response,
+        "feedback": feedback,
+        "prompt": prompt,
+        "mode": mode,
+        "scores": scores
+    })
+    # Optionally update session history here
+    return {"status": "success"}
+
+@app.post("/session_history")
+async def add_session_history(
+    session_id: str = Body(...),
+    prompt: str = Body(...),
+    response: str = Body(...),
+    model: str = Body(...),
+    scores: Optional[dict] = Body(None)
+):
+    if session_id not in session_history:
+        session_history[session_id] = []
+    session_history[session_id].append({
+        "prompt": prompt,
+        "response": response,
+        "model": model,
+        "scores": scores
+    })
+    return {"status": "success"}
+
+@app.get("/session_history/{session_id}")
+async def get_session_history(session_id: str):
+    return {"history": session_history.get(session_id, [])}
+
+@app.post("/reflect")
+async def reflect_on_response(
+    prompt: str = Body(...),
+    response: str = Body(...),
+    scores: dict = Body(...),
+    model: str = Body(...),
+    session_id: str = Body(...),
+    iteration: int = Body(...)
+):
+    """
+    Use an LLM to suggest prompt improvements based on the last response and its evaluation scores.
+    """
+    # Compose a reflection prompt for the LLM
+    reflection_prompt = f"""
+You are an expert prompt engineer. Given the following:
+- Original prompt: {prompt}
+- Model response: {response}
+- Evaluation scores: {scores}
+Suggest a revised prompt that would likely improve the model's next response, focusing on increasing the lowest scoring criteria. Be concise and actionable. Return only the improved prompt.
+"""
+    # Use Gemini for reflection (or OpenAI if preferred)
+    try:
+        reflection_response = client.models.generate_content(
+            model="gemini-2.5-flash", contents=reflection_prompt
+        )
+        improved_prompt = reflection_response.text.strip() if reflection_response.text else prompt
+    except Exception as e:
+        improved_prompt = prompt  # fallback to original if error
+    # Optionally store reflection in session history
+    session_history.setdefault(session_id, []).append({
+        "iteration": iteration,
+        "prompt": prompt,
+        "response": response,
+        "scores": scores,
+        "improved_prompt": improved_prompt,
+        "reflection": reflection_prompt
+    })
+    return {"improved_prompt": improved_prompt}
+
+@app.post("/prompt/version")
+async def add_prompt_version(
+    prompt_id: str = Body(...),
+    prompt: str = Body(...),
+    reason: str = Body(...),
+    improved_from: str = Body(None)
+):
+    version = {
+        "prompt": prompt,
+        "reason": reason,
+        "improved_from": improved_from,
+        "timestamp": datetime.now().isoformat()
+    }
+    prompt_versions.setdefault(prompt_id, []).append(version)
+    return {"status": "success", "version": version}
+
+@app.get("/prompt/history/{prompt_id}")
+async def get_prompt_history(prompt_id: str):
+    return {"history": prompt_versions.get(prompt_id, [])}
+
+@app.post("/prompt/score")
+async def add_prompt_score(
+    prompt_id: str = Body(...),
+    score: float = Body(...)
+):
+    scores = prompt_scores.setdefault(prompt_id, [])
+    scores.append(score)
+    # Keep only the last N scores
+    if len(scores) > PROMPT_SCORE_WINDOW:
+        scores.pop(0)
+    return {"status": "success", "scores": scores}
+
+@app.get("/prompt/quality/{prompt_id}")
+async def check_prompt_quality(prompt_id: str):
+    scores = prompt_scores.get(prompt_id, [])
+    if not scores or len(scores) < PROMPT_SCORE_WINDOW:
+        return {"status": "insufficient_data", "scores": scores}
+    avg = sum(scores) / len(scores)
+    degrade = avg < PROMPT_QUALITY_THRESHOLD
+    return {"status": "ok", "average": avg, "degraded": degrade, "threshold": PROMPT_QUALITY_THRESHOLD, "scores": scores}
 
 @app.get("/health")
 async def health_check():

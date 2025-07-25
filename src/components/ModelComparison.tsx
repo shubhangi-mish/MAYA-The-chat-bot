@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface Message {
   id: string;
@@ -20,6 +20,9 @@ const estimateCost = (text: string, model: 'gemini' | 'openai') => {
   return ((chars / 1000) * per1k).toFixed(4);
 };
 
+const MAX_ITERATIONS = 3;
+const PROMPT_ID = 'default';
+
 const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
   const [chatPrompt, setChatPrompt] = useState('');
   const [manualPrompt, setManualPrompt] = useState('');
@@ -37,6 +40,26 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
   const [manualEval, setManualEval] = useState<any>(null);
   const [chatPerf, setChatPerf] = useState<{ gemini: number; openai: number } | null>(null);
   const [manualPerf, setManualPerf] = useState<{ gemini: number; openai: number } | null>(null);
+  const [chatFeedback, setChatFeedback] = useState<{ gemini?: 'like' | 'dislike'; openai?: 'like' | 'dislike' }>({});
+  const [manualFeedback, setManualFeedback] = useState<{ gemini?: 'like' | 'dislike'; openai?: 'like' | 'dislike' }>({});
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [manualHistory, setManualHistory] = useState<any[]>([]);
+  const chatIteration = useRef(0);
+  const manualIteration = useRef(0);
+  const [currentPrompt, setCurrentPrompt] = useState('');
+
+  // Fetch the latest prompt from PromptManager
+  const fetchCurrentPrompt = async () => {
+    const res = await fetch(`/prompt/history/${PROMPT_ID}`);
+    const data = await res.json();
+    const last = data.history && data.history.length > 0 ? data.history[data.history.length - 1].prompt : '';
+    setCurrentPrompt(last);
+  };
+
+  useEffect(() => {
+    fetchCurrentPrompt();
+    // Optionally, set up polling or a websocket for real-time updates
+  }, []);
 
   useEffect(() => {
     if (messages && messages.length > 1) {
@@ -64,7 +87,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       const geminiRes = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: chatPrompt, conversation_history: [], model: 'gemini' })
+        body: JSON.stringify({ message: currentPrompt + '\n' + chatPrompt, conversation_history: [], model: 'gemini' })
       });
       const geminiData = await geminiRes.json();
       const t1 = performance.now();
@@ -74,7 +97,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       const openaiRes = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: chatPrompt, conversation_history: [], model: 'openai' })
+        body: JSON.stringify({ message: currentPrompt + '\n' + chatPrompt, conversation_history: [], model: 'openai' })
       });
       const openaiData = await openaiRes.json();
       const t3 = performance.now();
@@ -88,20 +111,20 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
           test_scenarios: [
             {
               name: 'Gemini Chat',
-              user_message: chatPrompt,
+              user_message: currentPrompt + '\n' + chatPrompt,
               expected_themes: [],
               conversation_history: [
-                { role: 'user', content: chatPrompt },
+                { role: 'user', content: currentPrompt + '\n' + chatPrompt },
                 { role: 'maya', content: geminiData.response }
               ],
               model: 'gemini'
             },
             {
               name: 'OpenAI Chat',
-              user_message: chatPrompt,
+              user_message: currentPrompt + '\n' + chatPrompt,
               expected_themes: [],
               conversation_history: [
-                { role: 'user', content: chatPrompt },
+                { role: 'user', content: currentPrompt + '\n' + chatPrompt },
                 { role: 'maya', content: openaiData.response }
               ],
               model: 'openai'
@@ -131,7 +154,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       const geminiRes = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: manualPrompt, conversation_history: [], model: 'gemini' })
+        body: JSON.stringify({ message: currentPrompt + '\n' + manualPrompt, conversation_history: [], model: 'gemini' })
       });
       const geminiData = await geminiRes.json();
       const t1 = performance.now();
@@ -141,7 +164,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       const openaiRes = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: manualPrompt, conversation_history: [], model: 'openai' })
+        body: JSON.stringify({ message: currentPrompt + '\n' + manualPrompt, conversation_history: [], model: 'openai' })
       });
       const openaiData = await openaiRes.json();
       const t3 = performance.now();
@@ -155,20 +178,20 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
           test_scenarios: [
             {
               name: 'Gemini Manual',
-              user_message: manualPrompt,
+              user_message: currentPrompt + '\n' + manualPrompt,
               expected_themes: [],
               conversation_history: [
-                { role: 'user', content: manualPrompt },
+                { role: 'user', content: currentPrompt + '\n' + manualPrompt },
                 { role: 'maya', content: geminiData.response }
               ],
               model: 'gemini'
             },
             {
               name: 'OpenAI Manual',
-              user_message: manualPrompt,
+              user_message: currentPrompt + '\n' + manualPrompt,
               expected_themes: [],
               conversation_history: [
-                { role: 'user', content: manualPrompt },
+                { role: 'user', content: currentPrompt + '\n' + manualPrompt },
                 { role: 'maya', content: openaiData.response }
               ],
               model: 'openai'
@@ -185,9 +208,80 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
     }
   };
 
+  const runIterativeComparison = async (mode: 'chat' | 'manual', prompt: string, model: 'gemini' | 'openai', iteration = 0) => {
+    if (iteration >= MAX_ITERATIONS) return;
+    // Generate response
+    const chatRes = await fetch('http://localhost:8000/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: prompt, conversation_history: [], model })
+    });
+    const chatData = await chatRes.json();
+    // Evaluate
+    const evalRes = await fetch('http://localhost:8000/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        test_scenarios: [
+          {
+            name: `${model} ${mode} Iteration ${iteration + 1}`,
+            user_message: prompt,
+            expected_themes: [],
+            conversation_history: [
+              { role: 'user', content: prompt },
+              { role: 'maya', content: chatData.response }
+            ],
+            model
+          }
+        ]
+      })
+    });
+    const evalData = await evalRes.json();
+    // Store in history
+    const entry = {
+      iteration,
+      prompt,
+      response: chatData.response,
+      scores: evalData.evaluation_results[0]?.scores || {},
+      model
+    };
+    if (mode === 'chat') setChatHistory(h => [...h, entry]);
+    else setManualHistory(h => [...h, entry]);
+    // If disliked, reflect and iterate
+    // (Feedback state is updated asynchronously, so check after user action)
+  };
+
+  const sendFeedback = async (model: 'gemini' | 'openai', type: 'like' | 'dislike', mode: 'chat' | 'manual') => {
+    if (mode === 'chat') setChatFeedback(fb => ({ ...fb, [model]: type }));
+    else setManualFeedback(fb => ({ ...fb, [model]: type }));
+    if (type === 'dislike') {
+      // Get last history entry
+      const history = mode === 'chat' ? chatHistory : manualHistory;
+      const last = history.filter(h => h.model === model).slice(-1)[0];
+      if (!last || (last.iteration ?? 0) >= MAX_ITERATIONS - 1) return;
+      // Reflect to get improved prompt
+      const reflectRes = await fetch('http://localhost:8000/reflect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: last.prompt,
+          response: last.response,
+          scores: last.scores,
+          model,
+          session_id: 'default',
+          iteration: (last.iteration ?? 0) + 1
+        })
+      });
+      const reflectData = await reflectRes.json();
+      // Run next iteration
+      await runIterativeComparison(mode, reflectData.improved_prompt, model, (last.iteration ?? 0) + 1);
+    }
+  };
+
   const renderEval = (evalObj: any) => (
     <div className="mt-4">
       <h5 className="text-lg font-bold text-white mb-2">Evaluation Scores</h5>
+      <div className="text-xs text-slate-400 mb-2">Combined = 30% Rule-based, 70% Semantic</div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
         <div className="text-center">
           <div className="text-3xl font-bold text-yellow-400">{evalObj.overall?.toFixed(1)}</div>
@@ -289,6 +383,16 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
               <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
                 <h4 className="text-lg font-bold text-cyan-300 mb-2">Gemini Output</h4>
                 <div className="text-slate-200 whitespace-pre-line">{geminiChatOutput}</div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className={`px-2 py-1 rounded ${chatFeedback.gemini === 'like' ? 'bg-green-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                    onClick={() => sendFeedback('gemini', 'like', 'chat')}
+                  >👍 Like</button>
+                  <button
+                    className={`px-2 py-1 rounded ${chatFeedback.gemini === 'dislike' ? 'bg-red-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                    onClick={() => sendFeedback('gemini', 'dislike', 'chat')}
+                  >👎 Dislike</button>
+                </div>
                 {geminiChatOutput && chatEval && chatEval[0] && renderEval({
                   ...chatEval[0].scores,
                   overall: chatEval[0].scores.overall
@@ -298,6 +402,16 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
               <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
                 <h4 className="text-lg font-bold text-green-300 mb-2">OpenAI Output</h4>
                 <div className="text-slate-200 whitespace-pre-line">{openaiChatOutput}</div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className={`px-2 py-1 rounded ${chatFeedback.openai === 'like' ? 'bg-green-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                    onClick={() => sendFeedback('openai', 'like', 'chat')}
+                  >👍 Like</button>
+                  <button
+                    className={`px-2 py-1 rounded ${chatFeedback.openai === 'dislike' ? 'bg-red-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                    onClick={() => sendFeedback('openai', 'dislike', 'chat')}
+                  >👎 Dislike</button>
+                </div>
                 {openaiChatOutput && chatEval && chatEval[1] && renderEval({
                   ...chatEval[1].scores,
                   overall: chatEval[1].scores.overall
@@ -352,6 +466,36 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
               </p>
             </div>
           )}
+          {/* History display */}
+          {chatHistory.length > 0 && (
+            <div className="mt-6">
+              <h4 className="text-lg font-bold text-white mb-2">Gemini/OpenAI Iteration History</h4>
+              <div className="overflow-x-auto">
+                <table className="min-w-full bg-slate-800/30 rounded-xl border border-slate-700/50">
+                  <thead>
+                    <tr>
+                      <th className="px-2 py-1 text-left text-slate-300">Model</th>
+                      <th className="px-2 py-1 text-left text-slate-300">Iteration</th>
+                      <th className="px-2 py-1 text-left text-slate-300">Prompt</th>
+                      <th className="px-2 py-1 text-left text-slate-300">Response</th>
+                      <th className="px-2 py-1 text-left text-slate-300">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chatHistory.map((h, i) => (
+                      <tr key={i}>
+                        <td className="px-2 py-1 text-cyan-300 font-semibold">{h.model}</td>
+                        <td className="px-2 py-1 text-slate-200">{h.iteration + 1}</td>
+                        <td className="px-2 py-1 text-slate-400 max-w-xs truncate">{h.prompt}</td>
+                        <td className="px-2 py-1 text-slate-200 max-w-xs truncate">{h.response}</td>
+                        <td className="px-2 py-1 text-yellow-400">{h.scores?.overall?.toFixed(1) ?? '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {/* Manual Prompt Comparison */}
@@ -377,6 +521,16 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
             <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
               <h4 className="text-lg font-bold text-cyan-300 mb-2">Gemini Output</h4>
               <div className="text-slate-200 whitespace-pre-line">{geminiManualOutput}</div>
+              <div className="flex gap-2 mt-2">
+                <button
+                  className={`px-2 py-1 rounded ${manualFeedback.gemini === 'like' ? 'bg-green-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                  onClick={() => sendFeedback('gemini', 'like', 'manual')}
+                >👍 Like</button>
+                <button
+                  className={`px-2 py-1 rounded ${manualFeedback.gemini === 'dislike' ? 'bg-red-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                  onClick={() => sendFeedback('gemini', 'dislike', 'manual')}
+                >👎 Dislike</button>
+              </div>
               {geminiManualOutput && manualEval && manualEval[0] && renderEval({
                 ...manualEval[0].scores,
                 overall: manualEval[0].scores.overall
@@ -386,6 +540,16 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
             <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
               <h4 className="text-lg font-bold text-green-300 mb-2">OpenAI Output</h4>
               <div className="text-slate-200 whitespace-pre-line">{openaiManualOutput}</div>
+              <div className="flex gap-2 mt-2">
+                <button
+                  className={`px-2 py-1 rounded ${manualFeedback.openai === 'like' ? 'bg-green-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                  onClick={() => sendFeedback('openai', 'like', 'manual')}
+                >👍 Like</button>
+                <button
+                  className={`px-2 py-1 rounded ${manualFeedback.openai === 'dislike' ? 'bg-red-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                  onClick={() => sendFeedback('openai', 'dislike', 'manual')}
+                >👎 Dislike</button>
+              </div>
               {openaiManualOutput && manualEval && manualEval[1] && renderEval({
                 ...manualEval[1].scores,
                 overall: manualEval[1].scores.overall
@@ -438,6 +602,36 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
             <p className="text-slate-400 mt-4">
               <span className="font-semibold">Tradeoff:</span> Review the outputs, scores, speed, and cost above. Choose <span className="text-cyan-300">Gemini</span> for cost-effective, fast, and factual responses; choose <span className="text-green-300">OpenAI</span> for creative, nuanced, or premium-quality tasks. Consider your application's needs and budget when choosing.
             </p>
+          </div>
+        )}
+        {/* History display */}
+        {manualHistory.length > 0 && (
+          <div className="mt-6">
+            <h4 className="text-lg font-bold text-white mb-2">Gemini/OpenAI Iteration History</h4>
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-slate-800/30 rounded-xl border border-slate-700/50">
+                <thead>
+                  <tr>
+                    <th className="px-2 py-1 text-left text-slate-300">Model</th>
+                    <th className="px-2 py-1 text-left text-slate-300">Iteration</th>
+                    <th className="px-2 py-1 text-left text-slate-300">Prompt</th>
+                    <th className="px-2 py-1 text-left text-slate-300">Response</th>
+                    <th className="px-2 py-1 text-left text-slate-300">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {manualHistory.map((h, i) => (
+                    <tr key={i}>
+                      <td className="px-2 py-1 text-cyan-300 font-semibold">{h.model}</td>
+                      <td className="px-2 py-1 text-slate-200">{h.iteration + 1}</td>
+                      <td className="px-2 py-1 text-slate-400 max-w-xs truncate">{h.prompt}</td>
+                      <td className="px-2 py-1 text-slate-200 max-w-xs truncate">{h.response}</td>
+                      <td className="px-2 py-1 text-yellow-400">{h.scores?.overall?.toFixed(1) ?? '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

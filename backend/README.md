@@ -90,9 +90,9 @@ Traditional, hand-crafted logic for each metric (range: 0–100).
 Cosine similarity between the model response and a set of themes (using sentence-transformers embeddings) for each metric (range: 0–1, scaled to 0–100).
 
 ### 3. Combined Score (C_M)
-For each metric M:
+For each metric M (weighted: 30% rule-based, 70% semantic):
 
-    C_M = (S_M + (E_M × 100)) / 2
+    C_M = (S_M × 0.3) + (E_M × 100 × 0.7)
 
 Where:
 - S_M = Rule-based score for metric M (0–100)
@@ -116,4 +116,4 @@ Where:
 - Cumulative combined score (0–100)
 - Overall score (0–100)
 
-**This approach ensures both traditional and semantic (embedding-based) evaluation are used for robust, explainable scoring.**
+**This approach ensures both traditional and semantic (embedding-based) evaluation are used for robust, explainable scoring, with semantic similarity given higher weight.**

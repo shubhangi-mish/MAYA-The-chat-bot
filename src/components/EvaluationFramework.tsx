@@ -219,6 +219,7 @@ const EvaluationFramework: React.FC<EvaluationFrameworkProps> = ({ messages }) =
                   <p className="text-slate-400">Comprehensive evaluation results</p>
                 </div>
               </div>
+              <div className="text-xs text-slate-400 mb-2">Combined = 30% Rule-based, 70% Semantic</div>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                 <div className="text-center">
                   <div className="text-3xl font-bold text-yellow-400">{results.overall?.toFixed(1)}</div>
