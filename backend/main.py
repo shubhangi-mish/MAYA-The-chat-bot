@@ -92,10 +92,48 @@ INTERNAL REASONING: Perform Reflective Reasoning and Chain-of-Thought steps inte
 OUTPUT: Only return the final Maya-style response (warm, friendly, emoji-rich, and beginner-friendly). Do not include internal reasoning or explanation in your response.
 """
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 # Load embedding model once at startup
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Add on-topic examples for semantic guardrails
+ON_TOPIC_EXAMPLES = [
+    "How can I live more sustainably?",
+    "What are some plant-based recipes?",
+    "Tell me about yoga routines.",
+    "Tips for mindful consumption?",
+    "How do I start with minimalism?",
+    "What are eco-friendly alternatives for daily use?",
+    "How can I reduce my carbon footprint?",
+    "Share a beginner yoga sequence.",
+    "What are your favorite plant-based meals?"
+    "diet",
+    "nutrition",
+    "health",
+    "fitness",
+    "wellness",
+    "mental health",
+    "mental illness",
+    "sustainability",
+    "eco-friendly",
+    "plant-based",
+    "yoga",
+    "mindful consumption",
+    "minimalism",
+    "environment",
+    "lifestyle",
+    "wellness",
+    "earth",
+    "climate change",
+    "climate crisis",
+    "climate emergency",
+    "climate change",
+    "climate crisis",
+    "climate emergency"
+    
+    ]
+ON_TOPIC_EMBS = embedding_model.encode(ON_TOPIC_EXAMPLES, convert_to_tensor=True)
 
 # In-memory session history and feedback store (for demo; use DB in production)
 session_history: Dict[str, List[Dict[str, Any]]] = {}
@@ -140,6 +178,30 @@ async def chat_with_maya(request: Request):
         message = data.get("message", "")
         conversation_history = data.get("conversation_history", [])
         model = data.get("model", "gemini")
+        # Semantic guardrail: check if message is off-topic/inappropriate
+        user_emb = embedding_model.encode(message, convert_to_tensor=True)
+        from sentence_transformers.util import cos_sim
+        sims = cos_sim(user_emb, ON_TOPIC_EMBS)
+        max_sim = float(sims.max().item())
+        if max_sim < 0.4:
+            # Log inappropriate/off-topic message to feedback_store
+            flagged_entry = {
+                "session_id": data.get("session_id", "unknown"),
+                "model": model,
+                "response": "[BLOCKED]",
+                "feedback": "inappropriate",
+                "prompt": message,
+                "mode": "chat",
+                "scores": {},
+                "timestamp": datetime.now().isoformat(),
+                "response_time": 0,
+                "inappropriate": True
+            }
+            feedback_store.append(flagged_entry)
+            # Persist to file
+            with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:
+                json.dump(feedback_store, f, ensure_ascii=False, indent=2)
+            return {"response": "Sorry, I can only answer questions about sustainable living, plant-based eating, and wellness."}
         # Debug: print incoming conversation_history
         print("DEBUG: conversation_history received:", conversation_history)
         # Build conversation context

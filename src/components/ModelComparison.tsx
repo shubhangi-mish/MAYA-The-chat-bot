@@ -147,7 +147,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       setChatEval(evalData.evaluation_results);
       // Send prompt score for quality tracking
       if (evalData.evaluation_results && evalData.evaluation_results[0]?.scores?.overall) {
-        await fetch('/prompt/score', {
+        await fetch('http://localhost:8000/prompt/score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -229,7 +229,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       setManualEval(evalData.evaluation_results);
       // Send prompt score for quality tracking
       if (evalData.evaluation_results && evalData.evaluation_results[0]?.scores?.overall) {
-        await fetch('/prompt/score', {
+        await fetch('http://localhost:8000/prompt/score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

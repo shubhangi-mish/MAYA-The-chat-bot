@@ -198,7 +198,7 @@ const TestScenarios: React.FC = () => {
         setScenarioFullScores(full => ({ ...full, [scenario.id]: s }));
         // Send prompt score for quality tracking
         if (s.overall) {
-          await fetch('/prompt/score', {
+          await fetch('http://localhost:8000/prompt/score', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

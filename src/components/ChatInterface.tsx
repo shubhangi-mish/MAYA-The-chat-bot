@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, User, Sparkles, Loader2 } from 'lucide-react';
+import { Send, User, Sparkles, Loader2, AlertTriangle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 interface Message {
@@ -71,7 +71,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) 
         { role: 'maya', content: p[1].content }
       ]));
       (async () => {
-        const evalRes = await fetch('/evaluate', {
+        const evalRes = await fetch('http://localhost:8000/evaluate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -87,7 +87,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) 
         });
         const evalData = await evalRes.json();
         if (evalData.evaluation_results && evalData.evaluation_results[0]?.scores?.overall) {
-          await fetch('/prompt/score', {
+          await fetch('http://localhost:8000/prompt/score', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -256,7 +256,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) 
             >
               <div className="flex items-start gap-2">
                 {message.sender === 'maya' && (
-                  <Sparkles className="w-4 h-4 text-green-400 mt-1 flex-shrink-0" />
+                  <>
+                    {/* Red alert icon for inappropriate message */}
+                    {message.content === "Sorry, I can only answer questions about sustainable living, plant-based eating, and wellness." && (
+                      <AlertTriangle className="w-4 h-4 text-red-500 mt-1 flex-shrink-0" />
+                    )}
+                    <Sparkles className="w-4 h-4 text-green-400 mt-1 flex-shrink-0" />
+                  </>
                 )}
                 {message.sender === 'user' && (
                   <User className="w-4 h-4 text-white mt-1 flex-shrink-0" />

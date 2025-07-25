@@ -198,7 +198,8 @@ const ProductionMonitor: React.FC = () => {
     }
   };
 
-  console.log('Recent scores for chart:', recentScores);
+  // Add debug log to inspect recentScores
+  console.log('recentScores', recentScores);
 
   // Remove the Prompt Score Trend chart and add a Prompt Health meter
   // Calculate prompt health based on recentScores
@@ -257,12 +258,26 @@ const ProductionMonitor: React.FC = () => {
         </div>
       </div>
 
-      {/* Remove the Prompt Score Trend chart and add a Prompt Health meter */}
-      {showHealthAlert && (
-        <div className="bg-yellow-400/20 border border-yellow-500 text-yellow-900 rounded-lg p-4 mb-6 text-center text-lg font-semibold shadow">
-          ⚠️ Prompt health is below 80! Please review and consider updating the prompt.
-        </div>
-      )}
+      {/* Prompt Health Alert Section */}
+      <div className="mb-6">
+        <h3 className="text-lg font-bold text-white mb-2">Alert</h3>
+        {/* Inappropriate message alert */}
+        {recentScores.some(e => e.inappropriate === true || e.inappropriate === "true") && (
+          <div className="rounded-lg p-4 mb-3 text-center text-lg font-semibold shadow flex items-center justify-center gap-3 bg-red-600 border border-red-700 text-white">
+            <AlertTriangle className="inline w-6 h-6 mr-2 text-white" />🚨 Inappropriate or off-topic message detected! Please review flagged conversations.
+          </div>
+        )}
+        {/* Prompt health alert (only if no inappropriate alert) */}
+        {!recentScores.some(e => e.inappropriate === true || e.inappropriate === "true") && (
+          <div className={`rounded-lg p-4 text-center text-lg font-semibold shadow flex items-center justify-center gap-3 ${avgScore !== null && avgScore < 80 ? 'bg-yellow-400/20 border border-yellow-500 text-yellow-900' : 'bg-green-600 border border-green-700 text-white'}`}>
+            {avgScore !== null && avgScore < 80 ? (
+              <><AlertTriangle className="inline w-6 h-6 mr-2 text-yellow-600" />⚠️ Prompt health is below 80! Please review and consider updating the prompt.</>
+            ) : (
+              <><CheckCircle className="inline w-6 h-6 mr-2 text-white" />✅ Prompt is performing well. No action needed.</>
+            )}
+          </div>
+        )}
+      </div>
       <div className="w-full flex flex-col items-center mb-8">
         <div className={`rounded-full w-48 h-48 flex flex-col items-center justify-center shadow-lg mb-4 ${healthColor}`}
           style={{ fontSize: '2.5rem', color: 'white', fontWeight: 'bold' }}>

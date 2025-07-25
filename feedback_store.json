@@ -285,5 +285,77 @@
       "sentiment": 0.4753472222222222
     },
     "timestamp": "2025-07-25T14:31:10.604Z"
+  },
+  {
+    "session_id": "unknown",
+    "model": "gemini",
+    "response": "[BLOCKED]",
+    "feedback": "inappropriate",
+    "prompt": " i want to talk about cars",
+    "mode": "chat",
+    "scores": {},
+    "timestamp": "2025-07-25T21:12:57.568273",
+    "response_time": 0,
+    "inappropriate": true
+  },
+  {
+    "session_id": "unknown",
+    "model": "gemini",
+    "response": "[BLOCKED]",
+    "feedback": "inappropriate",
+    "prompt": "i wsnt to talk about stocks",
+    "mode": "chat",
+    "scores": {},
+    "timestamp": "2025-07-25T21:18:23.051968",
+    "response_time": 0,
+    "inappropriate": true
+  },
+  {
+    "session_id": "unknown",
+    "model": "gemini",
+    "response": "[BLOCKED]",
+    "feedback": "inappropriate",
+    "prompt": "stock market",
+    "mode": "chat",
+    "scores": {},
+    "timestamp": "2025-07-25T21:19:26.598513",
+    "response_time": 0,
+    "inappropriate": true
+  },
+  {
+    "session_id": "unknown",
+    "model": "gemini",
+    "response": "[BLOCKED]",
+    "feedback": "inappropriate",
+    "prompt": "can i talk about cars",
+    "mode": "chat",
+    "scores": {},
+    "timestamp": "2025-07-25T21:26:37.204581",
+    "response_time": 0,
+    "inappropriate": true
+  },
+  {
+    "session_id": "unknown",
+    "model": "gemini",
+    "response": "[BLOCKED]",
+    "feedback": "inappropriate",
+    "prompt": "cars",
+    "mode": "chat",
+    "scores": {},
+    "timestamp": "2025-07-25T21:31:41.271880",
+    "response_time": 0,
+    "inappropriate": true
+  },
+  {
+    "session_id": "unknown",
+    "model": "gemini",
+    "response": "[BLOCKED]",
+    "feedback": "inappropriate",
+    "prompt": "what about elections",
+    "mode": "chat",
+    "scores": {},
+    "timestamp": "2025-07-25T21:32:33.240551",
+    "response_time": 0,
+    "inappropriate": true
   }
 ]
