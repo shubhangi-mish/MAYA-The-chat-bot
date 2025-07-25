@@ -121,14 +121,10 @@ const EvaluationFramework: React.FC<EvaluationFrameworkProps> = ({ messages }) =
       });
       const data = await response.json();
       if (data.evaluation_results && data.evaluation_results[0] && data.evaluation_results[0].scores) {
-        const r = data.evaluation_results[0];
+        const s = data.evaluation_results[0].scores;
         setResults({
-          ...r,
-          overall_score: r.scores.overall,
-          consistency: r.scores.consistency,
-          engagement: r.scores.engagement,
-          brand_alignment: r.scores.brand_alignment,
-          authenticity: r.scores.authenticity,
+          ...data.evaluation_results[0],
+          ...s
         });
       } else {
         setResults({ error: 'Malformed or incomplete evaluation results received from backend.' });
@@ -212,9 +208,9 @@ const EvaluationFramework: React.FC<EvaluationFrameworkProps> = ({ messages }) =
             <h3 className="text-lg font-bold">Evaluation Error</h3>
             <p>{results.error}</p>
           </div>
-        ) : (results.overall_score !== undefined && results.consistency !== undefined && results.engagement !== undefined && results.brand_alignment !== undefined && results.authenticity !== undefined ? (
+        ) : (results.overall !== undefined && results.consistency !== undefined && results.engagement !== undefined && results.brand_alignment !== undefined && results.authenticity !== undefined ? (
           <div className="space-y-6">
-            {/* Overall Score */}
+            {/* Modernized Score Display */}
             <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
               <div className="flex items-center gap-4 mb-4">
                 <Award className="w-8 h-8 text-yellow-400" />
@@ -223,36 +219,76 @@ const EvaluationFramework: React.FC<EvaluationFrameworkProps> = ({ messages }) =
                   <p className="text-slate-400">Comprehensive evaluation results</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                 <div className="text-center">
-                  <div className={`text-3xl font-bold ${getScoreColor(results.overall_score)}`}>
-                    {results.overall_score}
-                  </div>
-                  <div className="text-sm text-slate-400">Overall</div>
+                  <div className="text-3xl font-bold text-yellow-400">{results.overall?.toFixed(1)}</div>
+                  <div className="text-sm text-slate-400">Overall Score</div>
                 </div>
                 <div className="text-center">
-                  <div className={`text-2xl font-bold ${getScoreColor(results.consistency)}`}>
-                    {results.consistency}
-                  </div>
-                  <div className="text-sm text-slate-400">Consistency</div>
+                  <div className="text-2xl font-bold text-green-400">{results.consistency?.toFixed(1)}</div>
+                  <div className="text-sm text-slate-400">Consistency (Rule)</div>
                 </div>
                 <div className="text-center">
-                  <div className={`text-2xl font-bold ${getScoreColor(results.engagement)}`}>
-                    {results.engagement}
-                  </div>
-                  <div className="text-sm text-slate-400">Engagement</div>
+                  <div className="text-2xl font-bold text-blue-400">{results.engagement?.toFixed(1)}</div>
+                  <div className="text-sm text-slate-400">Engagement (Rule)</div>
                 </div>
                 <div className="text-center">
-                  <div className={`text-2xl font-bold ${getScoreColor(results.brand_alignment)}`}>
-                    {results.brand_alignment}
-                  </div>
-                  <div className="text-sm text-slate-400">Brand Alignment</div>
+                  <div className="text-2xl font-bold text-purple-400">{results.brand_alignment?.toFixed(1)}</div>
+                  <div className="text-sm text-slate-400">Brand Alignment (Rule)</div>
                 </div>
                 <div className="text-center">
-                  <div className={`text-2xl font-bold ${getScoreColor(results.authenticity)}`}>
-                    {results.authenticity}
-                  </div>
-                  <div className="text-sm text-slate-400">Authenticity</div>
+                  <div className="text-2xl font-bold text-pink-400">{results.authenticity?.toFixed(1)}</div>
+                  <div className="text-sm text-slate-400">Authenticity (Rule)</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-cyan-300">{(results.semantic_consistency * 100).toFixed(1)}%</div>
+                  <div className="text-xs text-slate-400">Consistency (Semantic)</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-cyan-300">{(results.semantic_engagement * 100).toFixed(1)}%</div>
+                  <div className="text-xs text-slate-400">Engagement (Semantic)</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-cyan-300">{(results.semantic_brand_alignment * 100).toFixed(1)}%</div>
+                  <div className="text-xs text-slate-400">Brand Alignment (Semantic)</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-cyan-300">{(results.semantic_authenticity * 100).toFixed(1)}%</div>
+                  <div className="text-xs text-slate-400">Authenticity (Semantic)</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-orange-400">{results.combined_consistency?.toFixed(1)}</div>
+                  <div className="text-xs text-slate-400">Consistency (Combined)</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-orange-400">{results.combined_engagement?.toFixed(1)}</div>
+                  <div className="text-xs text-slate-400">Engagement (Combined)</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-orange-400">{results.combined_brand_alignment?.toFixed(1)}</div>
+                  <div className="text-xs text-slate-400">Brand Alignment (Combined)</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-orange-400">{results.combined_authenticity?.toFixed(1)}</div>
+                  <div className="text-xs text-slate-400">Authenticity (Combined)</div>
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-center gap-6 mt-4">
+                <div className="text-center">
+                  <div className="text-xl font-bold text-cyan-400">{(results.cumulative_semantic * 100).toFixed(1)}%</div>
+                  <div className="text-xs text-slate-400">Cumulative Semantic</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-orange-400">{results.cumulative_combined?.toFixed(1)}</div>
+                  <div className="text-xs text-slate-400">Cumulative Combined</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-bold text-yellow-400">{results.overall?.toFixed(1)}</div>
+                  <div className="text-xs text-slate-400">Overall Score</div>
                 </div>
               </div>
             </div>

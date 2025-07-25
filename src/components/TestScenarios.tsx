@@ -60,12 +60,42 @@ const TestScenarios: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
 
+  // Track editable themes for each scenario
+  const [editableThemes, setEditableThemes] = useState<{ [id: string]: string[] }>(() => {
+    const obj: { [id: string]: string[] } = {};
+    scenarios.forEach(s => { obj[s.id] = [...s.expected_themes]; });
+    return obj;
+  });
+
+  const handleAddTheme = (id: string, theme: string) => {
+    setEditableThemes(prev => ({
+      ...prev,
+      [id]: [...(prev[id] || []), theme.trim()].filter((t, i, arr) => t && arr.indexOf(t) === i)
+    }));
+  };
+  const handleRemoveTheme = (id: string, theme: string) => {
+    setEditableThemes(prev => ({
+      ...prev,
+      [id]: (prev[id] || []).filter(t => t !== theme)
+    }));
+  };
+  const handleThemeInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, id: string) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const value = (e.target as HTMLInputElement).value.trim();
+      if (value) {
+        handleAddTheme(id, value);
+        (e.target as HTMLInputElement).value = '';
+      }
+    }
+  };
+
   const runScenario = async (scenario: TestScenario) => {
     setSelectedScenario(scenario);
     setIsRunning(true);
     setTestResult('');
     setEvaluationResult(null);
-
+    const themesToUse = editableThemes[scenario.id] || scenario.expected_themes;
     try {
       const response = await fetch('http://localhost:8000/chat', {
         method: 'POST',
@@ -79,12 +109,11 @@ const TestScenarios: React.FC = () => {
       });
       const data = await response.json();
       setTestResult(data.response);
-
       // Now evaluate the response
       const evalScenario = {
         name: scenario.name,
         user_message: scenario.user_message,
-        expected_themes: scenario.expected_themes,
+        expected_themes: themesToUse,
         conversation_history: [
           { role: 'user', content: scenario.user_message },
           { role: 'maya', content: data.response }
@@ -97,14 +126,10 @@ const TestScenarios: React.FC = () => {
       });
       const evalData = await evalRes.json();
       if (evalData.evaluation_results && evalData.evaluation_results[0] && evalData.evaluation_results[0].scores) {
-        const r = evalData.evaluation_results[0];
+        const s = evalData.evaluation_results[0].scores;
         setEvaluationResult({
-          ...r,
-          overall_score: r.scores.overall,
-          consistency: r.scores.consistency,
-          engagement: r.scores.engagement,
-          brand_alignment: r.scores.brand_alignment,
-          authenticity: r.scores.authenticity,
+          ...evalData.evaluation_results[0],
+          ...s
         });
       } else {
         setEvaluationResult({ error: 'Malformed or incomplete evaluation results received from backend.' });
@@ -174,11 +199,26 @@ const TestScenarios: React.FC = () => {
               </div>
               
               <div className="flex flex-wrap gap-1 mb-3">
-                {scenario.expected_themes.map((theme) => (
-                  <span key={theme} className="px-2 py-1 bg-slate-600/50 text-slate-300 rounded text-xs">
+                {editableThemes[scenario.id]?.map((theme) => (
+                  <span key={theme} className="px-2 py-1 bg-slate-600/50 text-slate-300 rounded text-xs flex items-center gap-1">
                     {theme}
+                    <button
+                      type="button"
+                      className="ml-1 text-red-400 hover:text-red-600"
+                      onClick={() => handleRemoveTheme(scenario.id, theme)}
+                      tabIndex={-1}
+                    >
+                      ×
+                    </button>
                   </span>
                 ))}
+                <input
+                  type="text"
+                  className="bg-transparent border-none outline-none text-xs text-slate-200 px-1 py-0.5 min-w-[60px]"
+                  placeholder="Add theme"
+                  onKeyDown={e => handleThemeInputKeyDown(e, scenario.id)}
+                  disabled={isRunning}
+                />
               </div>
               
               <button
@@ -245,26 +285,76 @@ const TestScenarios: React.FC = () => {
                   ) : (
                     <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4 mt-4">
                       <h5 className="text-sm font-bold text-white mb-2">Evaluation Results</h5>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                         <div className="text-center">
-                          <div className="text-3xl font-bold text-yellow-400">{evaluationResult.overall_score}</div>
-                          <div className="text-sm text-slate-400">Overall</div>
+                          <div className="text-3xl font-bold text-yellow-400">{evaluationResult.overall?.toFixed(1)}</div>
+                          <div className="text-sm text-slate-400">Overall Score</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-green-400">{evaluationResult.consistency}</div>
-                          <div className="text-sm text-slate-400">Consistency</div>
+                          <div className="text-2xl font-bold text-green-400">{evaluationResult.consistency?.toFixed(1)}</div>
+                          <div className="text-sm text-slate-400">Consistency (Rule)</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-400">{evaluationResult.engagement}</div>
-                          <div className="text-sm text-slate-400">Engagement</div>
+                          <div className="text-2xl font-bold text-blue-400">{evaluationResult.engagement?.toFixed(1)}</div>
+                          <div className="text-sm text-slate-400">Engagement (Rule)</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-purple-400">{evaluationResult.brand_alignment}</div>
-                          <div className="text-sm text-slate-400">Brand Alignment</div>
+                          <div className="text-2xl font-bold text-purple-400">{evaluationResult.brand_alignment?.toFixed(1)}</div>
+                          <div className="text-sm text-slate-400">Brand Alignment (Rule)</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-pink-400">{evaluationResult.authenticity}</div>
-                          <div className="text-sm text-slate-400">Authenticity</div>
+                          <div className="text-2xl font-bold text-pink-400">{evaluationResult.authenticity?.toFixed(1)}</div>
+                          <div className="text-sm text-slate-400">Authenticity (Rule)</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-cyan-300">{(evaluationResult.semantic_consistency * 100).toFixed(1)}%</div>
+                          <div className="text-xs text-slate-400">Consistency (Semantic)</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-cyan-300">{(evaluationResult.semantic_engagement * 100).toFixed(1)}%</div>
+                          <div className="text-xs text-slate-400">Engagement (Semantic)</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-cyan-300">{(evaluationResult.semantic_brand_alignment * 100).toFixed(1)}%</div>
+                          <div className="text-xs text-slate-400">Brand Alignment (Semantic)</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-cyan-300">{(evaluationResult.semantic_authenticity * 100).toFixed(1)}%</div>
+                          <div className="text-xs text-slate-400">Authenticity (Semantic)</div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-orange-400">{evaluationResult.combined_consistency?.toFixed(1)}</div>
+                          <div className="text-xs text-slate-400">Consistency (Combined)</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-orange-400">{evaluationResult.combined_engagement?.toFixed(1)}</div>
+                          <div className="text-xs text-slate-400">Engagement (Combined)</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-orange-400">{evaluationResult.combined_brand_alignment?.toFixed(1)}</div>
+                          <div className="text-xs text-slate-400">Brand Alignment (Combined)</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-orange-400">{evaluationResult.combined_authenticity?.toFixed(1)}</div>
+                          <div className="text-xs text-slate-400">Authenticity (Combined)</div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-6 mt-4">
+                        <div className="text-center">
+                          <div className="text-xl font-bold text-cyan-400">{(evaluationResult.cumulative_semantic * 100).toFixed(1)}%</div>
+                          <div className="text-xs text-slate-400">Cumulative Semantic</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xl font-bold text-orange-400">{evaluationResult.cumulative_combined?.toFixed(1)}</div>
+                          <div className="text-xs text-slate-400">Cumulative Combined</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xl font-bold text-yellow-400">{evaluationResult.overall?.toFixed(1)}</div>
+                          <div className="text-xs text-slate-400">Overall Score</div>
                         </div>
                       </div>
                     </div>
@@ -275,7 +365,7 @@ const TestScenarios: React.FC = () => {
                   <div>
                     <h5 className="text-sm font-medium text-slate-300 mb-2">Expected Themes:</h5>
                     <div className="flex flex-wrap gap-1">
-                      {selectedScenario.expected_themes.map((theme) => (
+                      {editableThemes[selectedScenario.id]?.map((theme) => (
                         <span key={theme} className="px-2 py-1 bg-slate-600/50 text-slate-300 rounded text-xs">
                           {theme}
                         </span>

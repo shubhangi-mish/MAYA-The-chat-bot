@@ -11,6 +11,8 @@ import json
 from google import genai
 from openai import OpenAI
 from dotenv import load_dotenv
+from sentence_transformers import SentenceTransformer, util
+import numpy as np
 
 load_dotenv()
 
@@ -66,7 +68,10 @@ BRAND VOICE:
 - "What I've learned on my journey is..."
 - Focus on progress over perfection"""
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
+
+# Load embedding model once at startup
+embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
 class ChatMessage(BaseModel):
     message: str
@@ -149,11 +154,8 @@ async def run_evaluation(request: EvaluationRequest):
     """Run evaluation on multiple test scenarios"""
     try:
         results = []
-        
         for scenario in request.test_scenarios:
-            # Determine model (default to gemini if not provided)
             model = scenario.get('model', 'gemini')
-            # Generate response for each scenario
             full_prompt = f"""{CURRENT_PROMPT}
 
 User: {scenario['user_message']}
@@ -172,27 +174,108 @@ Maya:"""
                 )
                 response_text = openai_response.output_text.strip() if hasattr(openai_response, 'output_text') else str(openai_response)
             elif model == "claude":
-                # TODO: Implement Claude call here using CLAUDE_API_KEY
                 response_text = "[Claude integration not yet implemented]"
             else:
                 response_text = "[Unknown model specified]"
-            # Simple evaluation metrics (in production, this would be more sophisticated)
-            # Use the generated response_text for evaluation
+
+            # Define themes for each metric
+            prompt_text = scenario.get('user_message', '')
+            maya_themes = [
+                "Maya",
+                "influencer",
+                "authentic",
+                "engaging",
+                "warm",
+                "enthusiastic",
+                "personal journey",
+                "helping others"
+            ]
+            sustainable_themes = [
+                "sustainable living",
+                "eco-friendly",
+                "plant-based",
+                "yoga",
+                "mindful consumption",
+                "minimalism",
+                "environment",
+                "conscious living"
+            ]
+            # Consistency: Maya's persona and style
+            consistency_themes = maya_themes + ["character consistency", "personal anecdotes", "conversational tone"]
+            # Engagement: Questions, follow-ups, personal touch
+            engagement_themes = ["engagement", "follow-up questions", "personal experience", "ask questions", "keep conversation going"] + maya_themes
+            # Brand Alignment: Sustainability, eco, brand voice
+            brand_alignment_themes = sustainable_themes + ["brand alignment", "values", "brand voice", "on-brand", "mission"]
+            # Authenticity: Honesty, humility, natural, relatable
+            authenticity_themes = ["authenticity", "honest", "humble", "relatable", "natural language", "genuine"] + maya_themes
+            # Add prompt context to each theme set
+            for theme_set in [consistency_themes, engagement_themes, brand_alignment_themes, authenticity_themes]:
+                theme_set.append(prompt_text)
+
+            # Compute semantic similarity for each metric
+            def semantic_score(response, themes):
+                ref = ' '.join(themes)
+                emb1 = embedding_model.encode(response, convert_to_tensor=True)
+                emb2 = embedding_model.encode(ref, convert_to_tensor=True)
+                return float(util.cos_sim(emb1, emb2).item())
+
+            semantic_consistency = semantic_score(response_text, consistency_themes)
+            semantic_engagement = semantic_score(response_text, engagement_themes)
+            semantic_brand_alignment = semantic_score(response_text, brand_alignment_themes)
+            semantic_authenticity = semantic_score(response_text, authenticity_themes)
+            # Cumulative semantic score (mean of all 4)
+            cumulative_semantic = float(np.mean([
+                semantic_consistency,
+                semantic_engagement,
+                semantic_brand_alignment,
+                semantic_authenticity
+            ]))
+
+            # Existing rule-based scores
             consistency_score = evaluate_consistency(response_text, scenario.get('expected_themes', []))
             engagement_score = evaluate_engagement(response_text)
             brand_alignment_score = evaluate_brand_alignment(response_text)
             authenticity_score = evaluate_authenticity(response_text)
-            overall_score = (consistency_score + engagement_score + brand_alignment_score + authenticity_score) / 4
+            # Combined scores for each metric
+            combined_consistency = (consistency_score + semantic_consistency * 100) / 2
+            combined_engagement = (engagement_score + semantic_engagement * 100) / 2
+            combined_brand_alignment = (brand_alignment_score + semantic_brand_alignment * 100) / 2
+            combined_authenticity = (authenticity_score + semantic_authenticity * 100) / 2
+            # Cumulative scores
+            cumulative_semantic = float(np.mean([
+                semantic_consistency,
+                semantic_engagement,
+                semantic_brand_alignment,
+                semantic_authenticity
+            ]))
+            cumulative_combined = float(np.mean([
+                combined_consistency,
+                combined_engagement,
+                combined_brand_alignment,
+                combined_authenticity
+            ]))
+            # Overall score: average of cumulative_combined and cumulative_semantic (scaled to 0-100)
+            overall_score = (cumulative_combined + (cumulative_semantic * 100)) / 2
             results.append({
                 "scenario": scenario['name'],
                 "user_message": scenario['user_message'],
                 "maya_response": response_text,
                 "scores": {
-                    "overall": overall_score,
                     "consistency": consistency_score,
+                    "semantic_consistency": semantic_consistency,
+                    "combined_consistency": combined_consistency,
                     "engagement": engagement_score,
+                    "semantic_engagement": semantic_engagement,
+                    "combined_engagement": combined_engagement,
                     "brand_alignment": brand_alignment_score,
-                    "authenticity": authenticity_score
+                    "semantic_brand_alignment": semantic_brand_alignment,
+                    "combined_brand_alignment": combined_brand_alignment,
+                    "authenticity": authenticity_score,
+                    "semantic_authenticity": semantic_authenticity,
+                    "combined_authenticity": combined_authenticity,
+                    "cumulative_semantic": cumulative_semantic,
+                    "cumulative_combined": cumulative_combined,
+                    "overall": overall_score
                 },
                 "timestamp": datetime.now().isoformat()
             })
