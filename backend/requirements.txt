@@ -8,3 +8,7 @@ openai
 anthropic
 sentence-transformers
 textblob
+google-generativeai  
+numpy
+openai
+python-dotenv
