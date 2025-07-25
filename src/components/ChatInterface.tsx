@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, User, Sparkles, Loader2 } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Message {
   id: string;
@@ -37,6 +38,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) 
 
   // Add state to track full evaluation results per Maya message
   const [messageFullScores, setMessageFullScores] = useState<{ [id: string]: any }>({});
+
+  const [messageResponseTimes, setMessageResponseTimes] = useState<{ [id: string]: number }>({});
+
+  const [sessionId, setSessionId] = useState<string>(() => uuidv4());
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -116,6 +121,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) 
     if (currentPrompt && currentPrompt !== lastPrompt) {
       setConversationHistory([{ role: 'system', content: currentPrompt }]);
       setLastPrompt(currentPrompt);
+      setSessionId(uuidv4());
     }
   }, [currentPrompt]);
 
@@ -137,6 +143,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) 
       // Add user message to conversation history
       const newHistory = [...conversationHistory, { role: 'user', content: inputMessage }];
       setConversationHistory(newHistory);
+      const t0 = Date.now();
       const response = await fetch('http://localhost:8000/chat', {
         method: 'POST',
         headers: {
@@ -148,6 +155,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) 
           model: selectedModel
         }),
       });
+      const t1 = Date.now();
+      const responseTime = (t1 - t0) / 1000; // in seconds
       const data = await response.json();
       const mayaMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -157,6 +166,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) 
       };
       setMessages(prev => [...prev, mayaMessage]);
       setConversationHistory(hist => [...hist, { role: 'maya', content: data.response }]);
+      setMessageResponseTimes(times => ({ ...times, [mayaMessage.id]: responseTime }));
       // Evaluate the Maya response
       fetch('http://localhost:8000/evaluate', {
         method: 'POST',
@@ -273,14 +283,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) 
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                          session_id: message.id,
+                          session_id: sessionId,
                           model: selectedModel,
                           response: message.content,
                           feedback: 'like',
                           prompt: currentPrompt,
                           mode: 'chat',
                           scores: { ...fullScores, overall: adjustedScore },
-                          timestamp: new Date().toISOString()
+                          timestamp: new Date().toISOString(),
+                          response_time: messageResponseTimes[message.id]
                         })
                       });
                     }}
@@ -299,14 +310,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, setMessages }) 
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                          session_id: message.id,
+                          session_id: sessionId,
                           model: selectedModel,
                           response: message.content,
                           feedback: 'dislike',
                           prompt: currentPrompt,
                           mode: 'chat',
                           scores: { ...fullScores, overall: adjustedScore },
-                          timestamp: new Date().toISOString()
+                          timestamp: new Date().toISOString(),
+                          response_time: messageResponseTimes[message.id]
                         })
                       });
                     }}

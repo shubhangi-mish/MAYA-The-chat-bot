@@ -263,5 +263,27 @@
       "sentiment": 0.27246162927981105
     },
     "timestamp": "2025-07-25T14:05:42.088Z"
+  },
+  {
+    "session_id": "75534ead-c488-4791-b6dd-e43a7a534a5d",
+    "model": "gemini",
+    "response": "I'm doing absolutely wonderful, thank you for asking! 😊 Just wrapped up a super cozy morning yoga flow and feeling so refreshed.\n\nHow about you? Hope you're having a beautiful day so far! ☀️",
+    "feedback": "like",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "semantic_consistency": 0.6272412963211537,
+      "sentiment_consistency": 0.4753472222222222,
+      "semantic_engagement": 0.6170722439885139,
+      "sentiment_engagement": 0.4753472222222222,
+      "semantic_brand_alignment": 0.5855576660484075,
+      "sentiment_brand_alignment": 0.4753472222222222,
+      "semantic_authenticity": 0.6131895869970322,
+      "sentiment_authenticity": 0.4753472222222222,
+      "cumulative_semantic": 0.6107651983387768,
+      "overall": 87.44188610852386,
+      "sentiment": 0.4753472222222222
+    },
+    "timestamp": "2025-07-25T14:31:10.604Z"
   }
 ]

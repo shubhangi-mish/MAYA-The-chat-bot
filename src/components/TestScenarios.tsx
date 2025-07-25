@@ -159,6 +159,8 @@ const TestScenarios: React.FC = () => {
     setTestResult('');
     setEvaluationResult(null);
     const themesToUse = editableThemes[scenario.id] || scenario.expected_themes;
+    // In runScenario, measure response time
+    const t0 = Date.now();
     try {
       const response = await fetch('http://localhost:8000/chat', {
         method: 'POST',
@@ -170,6 +172,8 @@ const TestScenarios: React.FC = () => {
           conversation_history: []
         }),
       });
+      const t1 = Date.now();
+      const responseTime = (t1 - t0) / 1000; // in seconds
       const data = await response.json();
       setTestResult(data.response);
       // Now evaluate the response
@@ -233,6 +237,7 @@ const TestScenarios: React.FC = () => {
 
   // Add state to track full evaluation results per scenario
   const [scenarioFullScores, setScenarioFullScores] = useState<{ [id: string]: any }>({});
+  const [scenarioResponseTimes, setScenarioResponseTimes] = useState<{ [id: string]: number }>({});
 
   const fullScores = selectedScenario ? scenarioFullScores[selectedScenario.id] : undefined;
   const feedbackDisabled = !fullScores;
@@ -540,7 +545,8 @@ const TestScenarios: React.FC = () => {
                           prompt: selectedScenario.user_message,
                           mode: 'scenario',
                           scores: { ...fullScores, overall: evaluationResult.overall + 5 },
-                          timestamp: new Date().toISOString()
+                          timestamp: new Date().toISOString(),
+                          response_time: scenarioResponseTimes[selectedScenario.id]
                         })
                       });
                     }}
@@ -565,7 +571,8 @@ const TestScenarios: React.FC = () => {
                           prompt: selectedScenario.user_message,
                           mode: 'scenario',
                           scores: { ...fullScores, overall: evaluationResult.overall - 5 },
-                          timestamp: new Date().toISOString()
+                          timestamp: new Date().toISOString(),
+                          response_time: scenarioResponseTimes[selectedScenario.id]
                         })
                       });
                     }}

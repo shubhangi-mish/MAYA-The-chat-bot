@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Message {
   id: string;
@@ -49,6 +50,12 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
   const [currentPrompt, setCurrentPrompt] = useState('');
   // Add state to track full evaluation results per model and mode
   const [evalFullScores, setEvalFullScores] = useState<{ [key: string]: any }>({});
+  const [sessionId, setSessionId] = useState<string>(() => uuidv4());
+
+  // When the prompt changes (new comparison), generate a new session ID
+  useEffect(() => {
+    setSessionId(uuidv4());
+  }, [currentPrompt]);
 
   // Fetch the latest prompt from PromptManager
   const fetchCurrentPrompt = async () => {
@@ -93,6 +100,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       });
       const geminiData = await geminiRes.json();
       const t1 = performance.now();
+      const geminiResponseTime = (t1 - t0) / 1000;
       setGeminiChatOutput(geminiData.response);
       // OpenAI
       const t2 = performance.now();
@@ -103,6 +111,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       });
       const openaiData = await openaiRes.json();
       const t3 = performance.now();
+      const openaiResponseTime = (t3 - t2) / 1000;
       setOpenaiChatOutput(openaiData.response);
       setChatPerf({ gemini: t1 - t0, openai: t3 - t2 });
       // Evaluation
@@ -173,6 +182,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       });
       const geminiData = await geminiRes.json();
       const t1 = performance.now();
+      const geminiResponseTime = (t1 - t0) / 1000;
       setGeminiManualOutput(geminiData.response);
       // OpenAI
       const t2 = performance.now();
@@ -183,6 +193,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       });
       const openaiData = await openaiRes.json();
       const t3 = performance.now();
+      const openaiResponseTime = (t3 - t2) / 1000;
       setOpenaiManualOutput(openaiData.response);
       setManualPerf({ gemini: t1 - t0, openai: t3 - t2 });
       // Evaluation
@@ -295,20 +306,23 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
     if (!fullScores) return;
     console.log('Submitting feedback with scores:', { ...fullScores, overall: adjustedScore });
     // Send feedback to backend
-    fetch('http://localhost:8000/feedback', {
+    const t0 = performance.now();
+    const res = await fetch('http://localhost:8000/feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        session_id: 'default',
+        session_id: sessionId,
         model,
         response: last.response,
         feedback: type,
         prompt: last.prompt,
         mode,
         scores: { ...fullScores, overall: adjustedScore },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        response_time: model === 'gemini' ? (performance.now() - t0) / 1000 : (performance.now() - t0) / 1000
       })
     });
+    const data = await res.json();
     if (type === 'dislike') {
       if ((last.iteration ?? 0) >= MAX_ITERATIONS - 1) return;
       // Reflect to get improved prompt
@@ -320,7 +334,7 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
           response: last.response,
           scores: last.scores,
           model,
-          session_id: 'default',
+          session_id: sessionId,
           iteration: (last.iteration ?? 0) + 1
         })
       });

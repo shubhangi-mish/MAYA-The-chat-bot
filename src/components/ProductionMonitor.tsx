@@ -16,38 +16,39 @@ import { useRef } from 'react';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const ProductionMonitor: React.FC = () => {
+  // Remove all hardcoded metrics except those to be calculated
+  // Calculate metrics from recentScores and feedback_store
   const [metrics, setMetrics] = useState({
-    uptime: 99.8,
-    avg_response_time: 1.2,
-    total_conversations: 1247,
-    satisfaction_score: 4.6,
-    error_rate: 0.2,
-    active_users: 34
+    uptime: 100,
+    total_conversations: 0,
+    avg_response_time: 0,
+    satisfaction: 0
   });
 
-  const [alerts, setAlerts] = useState([
-    {
-      id: 1,
-      type: 'warning',
-      message: 'Response time increased by 15% in the last hour',
-      timestamp: new Date(Date.now() - 30 * 60 * 1000),
-      resolved: false
-    },
-    {
-      id: 2,
-      type: 'info',
-      message: 'New prompt version deployed successfully',
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      resolved: true
-    },
-    {
-      id: 3,
-      type: 'error',
-      message: 'API rate limit exceeded - auto-scaling triggered',
-      timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000),
-      resolved: true
-    }
-  ]);
+  // Remove alerts state and related logic
+  // const [alerts, setAlerts] = useState([
+  //   {
+  //     id: 1,
+  //     type: 'warning',
+  //     message: 'Response time increased by 15% in the last hour',
+  //     timestamp: new Date(Date.now() - 30 * 60 * 1000),
+  //     resolved: false
+  //   },
+  //   {
+  //     id: 2,
+  //     type: 'info',
+  //     message: 'New prompt version deployed successfully',
+  //     timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+  //     resolved: true
+  //   },
+  //   {
+  //     id: 3,
+  //     type: 'error',
+  //     message: 'API rate limit exceeded - auto-scaling triggered',
+  //     timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000),
+  //     resolved: true
+  //   }
+  // ]);
 
   const [performanceData] = useState([
     { time: '00:00', consistency: 89, engagement: 92, brand_alignment: 88 },
@@ -99,6 +100,48 @@ const ProductionMonitor: React.FC = () => {
     pollingRef.current = setInterval(fetchRecentScores, 5000);
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, []);
+
+  useEffect(() => {
+    // Calculate uptime as % of time since first feedback entry (simulate 100% for now)
+    let uptime = 100;
+    let total_conversations = 0;
+    let avg_response_time = 0;
+    let satisfaction = 0;
+    // Use all feedback entries, not just recentScores
+    fetch('http://localhost:8000/feedback/aggregate')
+      .then(res => res.json())
+      .then(data => {
+        let all: any[] = [];
+        Object.entries(data).forEach(([prompt, entries]) => {
+          (entries as any[]).forEach((entry: any) => {
+            all.push({ ...entry, prompt });
+          });
+        });
+        // Uptime: simulate 100% (or calculate based on first/last timestamp)
+        if (all.length > 0) {
+          const timestamps = all.map(e => new Date(e.timestamp).getTime());
+          const minTime = Math.min(...timestamps);
+          const maxTime = Math.max(...timestamps);
+          const now = Date.now();
+          // Uptime as % of time since first feedback (simulate always up)
+          uptime = 100;
+        }
+        // Total conversations: count unique session_ids
+        total_conversations = new Set(all.map(e => e.session_id)).size;
+        // Avg response time: average of response_time field if present
+        const responseTimes = all.map(e => e.response_time).filter(t => typeof t === 'number');
+        if (responseTimes.length > 0) {
+          avg_response_time = responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
+        } else {
+          avg_response_time = 0;
+        }
+        // Satisfaction: likes / (likes + dislikes)
+        const likes = all.filter(e => e.feedback === 'like').length;
+        const dislikes = all.filter(e => e.feedback === 'dislike').length;
+        satisfaction = likes + dislikes > 0 ? (likes / (likes + dislikes)) * 5 : 0;
+        setMetrics({ uptime, total_conversations, avg_response_time, satisfaction });
+      });
+  }, [recentScores]);
 
   const getAlertIcon = (type: string) => {
     switch (type) {
@@ -173,6 +216,9 @@ const ProductionMonitor: React.FC = () => {
     healthText = 'Prompt quality is poor. Prompt reconsideration needed!';
   }
 
+  // Remove all hardcoded alerts. Only show alert if avgScore < 80
+  const showHealthAlert = avgScore !== null && avgScore < 80;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -184,57 +230,39 @@ const ProductionMonitor: React.FC = () => {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Activity className="w-4 h-4 text-green-400" />
             <span className="text-sm text-slate-400">Uptime</span>
           </div>
           <div className="text-2xl font-bold text-white">{metrics.uptime}%</div>
         </div>
-
         <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-4 h-4 text-blue-400" />
-            <span className="text-sm text-slate-400">Avg Response</span>
-          </div>
-          <div className="text-2xl font-bold text-white">{metrics.avg_response_time}s</div>
-        </div>
-
-        <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="w-4 h-4 text-purple-400" />
             <span className="text-sm text-slate-400">Conversations</span>
           </div>
           <div className="text-2xl font-bold text-white">{metrics.total_conversations}</div>
         </div>
-
         <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4">
           <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className="w-4 h-4 text-yellow-400" />
+            <span className="text-sm text-slate-400">Avg Response (s)</span>
+          </div>
+          <div className="text-2xl font-bold text-white">{metrics.avg_response_time.toFixed(2)}</div>
+        </div>
+        <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4">
+          <div className="flex items-center gap-2 mb-2">
             <span className="text-sm text-slate-400">Satisfaction</span>
           </div>
-          <div className="text-2xl font-bold text-white">{metrics.satisfaction_score}/5</div>
-        </div>
-
-        <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingDown className="w-4 h-4 text-red-400" />
-            <span className="text-sm text-slate-400">Error Rate</span>
-          </div>
-          <div className="text-2xl font-bold text-white">{metrics.error_rate}%</div>
-        </div>
-
-        <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Activity className="w-4 h-4 text-cyan-400" />
-            <span className="text-sm text-slate-400">Active Users</span>
-          </div>
-          <div className="text-2xl font-bold text-white">{metrics.active_users}</div>
+          <div className="text-2xl font-bold text-white">{metrics.satisfaction.toFixed(2)}/5</div>
         </div>
       </div>
 
       {/* Remove the Prompt Score Trend chart and add a Prompt Health meter */}
+      {showHealthAlert && (
+        <div className="bg-yellow-400/20 border border-yellow-500 text-yellow-900 rounded-lg p-4 mb-6 text-center text-lg font-semibold shadow">
+          ⚠️ Prompt health is below 80! Please review and consider updating the prompt.
+        </div>
+      )}
       <div className="w-full flex flex-col items-center mb-8">
         <div className={`rounded-full w-48 h-48 flex flex-col items-center justify-center shadow-lg mb-4 ${healthColor}`}
           style={{ fontSize: '2.5rem', color: 'white', fontWeight: 'bold' }}>
@@ -276,6 +304,7 @@ const ProductionMonitor: React.FC = () => {
       </div>
 
       {/* Alerts */}
+      {/* Remove from:
       <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
         <h3 className="text-lg font-semibold text-white mb-4">System Alerts</h3>
         
@@ -310,7 +339,7 @@ const ProductionMonitor: React.FC = () => {
             <div>• Satisfaction score threshold: &lt;4.0</div>
           </div>
         </div>
-      </div>
+      </div> */}
     </div>
   );
 };
