@@ -1,5 +1,6 @@
 fastapi
 uvicorn
+guincorn
 google-genai
 pydantic
 python-multipart
