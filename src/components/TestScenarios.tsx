@@ -190,10 +190,19 @@ const TestScenarios: React.FC = () => {
       const evalData = await evalRes.json();
       if (evalData.evaluation_results && evalData.evaluation_results[0] && evalData.evaluation_results[0].scores) {
         const s = evalData.evaluation_results[0].scores;
-        setEvaluationResult({
-          ...evalData.evaluation_results[0],
-          ...s
-        });
+        setEvaluationResult({ ...evalData.evaluation_results[0], ...s });
+        setScenarioFullScores(full => ({ ...full, [scenario.id]: s }));
+        // Send prompt score for quality tracking
+        if (s.overall) {
+          await fetch('/prompt/score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt_id: PROMPT_ID,
+              score: s.overall
+            })
+          });
+        }
       } else {
         setEvaluationResult({ error: 'Malformed or incomplete evaluation results received from backend.' });
       }
@@ -221,6 +230,12 @@ const TestScenarios: React.FC = () => {
     };
     return colors[category] || 'bg-gray-500/20 text-gray-400';
   };
+
+  // Add state to track full evaluation results per scenario
+  const [scenarioFullScores, setScenarioFullScores] = useState<{ [id: string]: any }>({});
+
+  const fullScores = selectedScenario ? scenarioFullScores[selectedScenario.id] : undefined;
+  const feedbackDisabled = !fullScores;
 
   return (
     <div className="space-y-6">
@@ -446,87 +461,45 @@ const TestScenarios: React.FC = () => {
                   ) : (
                     <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-4 mt-4">
                       <h5 className="text-sm font-bold text-white mb-2">Evaluation Results</h5>
-                      <div className="text-xs text-slate-400 mb-2">Combined = 30% Rule-based, 70% Semantic</div>
-                      <div className="flex gap-2 mb-4">
-                        <button
-                          className={`px-2 py-1 rounded ${scenarioFeedback[selectedScenario.id] === 'like' ? 'bg-green-500 text-white' : 'bg-slate-600 text-white/70'}`}
-                          onClick={() => sendScenarioFeedback(selectedScenario.id, 'like')}
-                        >👍 Like</button>
-                        <button
-                          className={`px-2 py-1 rounded ${scenarioFeedback[selectedScenario.id] === 'dislike' ? 'bg-red-500 text-white' : 'bg-slate-600 text-white/70'}`}
-                          onClick={() => sendScenarioFeedback(selectedScenario.id, 'dislike')}
-                        >👎 Dislike</button>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                      <div className="text-xs text-slate-400 mb-2">Overall = 70% Semantic, 30% Sentiment</div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                         <div className="text-center">
                           <div className="text-3xl font-bold text-yellow-400">{evaluationResult.overall?.toFixed(1)}</div>
                           <div className="text-sm text-slate-400">Overall Score</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-green-400">{evaluationResult.consistency?.toFixed(1)}</div>
-                          <div className="text-sm text-slate-400">Consistency (Rule)</div>
+                          <div className="text-xl font-bold text-cyan-300">{(evaluationResult.cumulative_semantic * 100).toFixed(1)}%</div>
+                          <div className="text-xs text-slate-400">Cumulative Semantic</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-400">{evaluationResult.engagement?.toFixed(1)}</div>
-                          <div className="text-sm text-slate-400">Engagement (Rule)</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-purple-400">{evaluationResult.brand_alignment?.toFixed(1)}</div>
-                          <div className="text-sm text-slate-400">Brand Alignment (Rule)</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-pink-400">{evaluationResult.authenticity?.toFixed(1)}</div>
-                          <div className="text-sm text-slate-400">Authenticity (Rule)</div>
+                          <div className="text-xl font-bold text-pink-400">{typeof evaluationResult.sentiment === 'number' ? (evaluationResult.sentiment * 100).toFixed(1) + '%' : '-'}</div>
+                          <div className="text-xs text-slate-400">Sentiment (Polarity)</div>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
                         <div className="text-center">
                           <div className="text-lg font-bold text-cyan-300">{(evaluationResult.semantic_consistency * 100).toFixed(1)}%</div>
                           <div className="text-xs text-slate-400">Consistency (Semantic)</div>
+                          <div className="text-lg font-bold text-pink-400 mt-1">{typeof evaluationResult.sentiment_consistency === 'number' ? (evaluationResult.sentiment_consistency * 100).toFixed(1) + '%' : '-'}</div>
+                          <div className="text-xs text-slate-400">Consistency (Sentiment)</div>
                         </div>
                         <div className="text-center">
                           <div className="text-lg font-bold text-cyan-300">{(evaluationResult.semantic_engagement * 100).toFixed(1)}%</div>
                           <div className="text-xs text-slate-400">Engagement (Semantic)</div>
+                          <div className="text-lg font-bold text-pink-400 mt-1">{typeof evaluationResult.sentiment_engagement === 'number' ? (evaluationResult.sentiment_engagement * 100).toFixed(1) + '%' : '-'}</div>
+                          <div className="text-xs text-slate-400">Engagement (Sentiment)</div>
                         </div>
                         <div className="text-center">
                           <div className="text-lg font-bold text-cyan-300">{(evaluationResult.semantic_brand_alignment * 100).toFixed(1)}%</div>
                           <div className="text-xs text-slate-400">Brand Alignment (Semantic)</div>
+                          <div className="text-lg font-bold text-pink-400 mt-1">{typeof evaluationResult.sentiment_brand_alignment === 'number' ? (evaluationResult.sentiment_brand_alignment * 100).toFixed(1) + '%' : '-'}</div>
+                          <div className="text-xs text-slate-400">Brand Alignment (Sentiment)</div>
                         </div>
                         <div className="text-center">
                           <div className="text-lg font-bold text-cyan-300">{(evaluationResult.semantic_authenticity * 100).toFixed(1)}%</div>
                           <div className="text-xs text-slate-400">Authenticity (Semantic)</div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-orange-400">{evaluationResult.combined_consistency?.toFixed(1)}</div>
-                          <div className="text-xs text-slate-400">Consistency (Combined)</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-orange-400">{evaluationResult.combined_engagement?.toFixed(1)}</div>
-                          <div className="text-xs text-slate-400">Engagement (Combined)</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-orange-400">{evaluationResult.combined_brand_alignment?.toFixed(1)}</div>
-                          <div className="text-xs text-slate-400">Brand Alignment (Combined)</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-bold text-orange-400">{evaluationResult.combined_authenticity?.toFixed(1)}</div>
-                          <div className="text-xs text-slate-400">Authenticity (Combined)</div>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap justify-center gap-6 mt-4">
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-cyan-400">{(evaluationResult.cumulative_semantic * 100).toFixed(1)}%</div>
-                          <div className="text-xs text-slate-400">Cumulative Semantic</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-orange-400">{evaluationResult.cumulative_combined?.toFixed(1)}</div>
-                          <div className="text-xs text-slate-400">Cumulative Combined</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-xl font-bold text-yellow-400">{evaluationResult.overall?.toFixed(1)}</div>
-                          <div className="text-xs text-slate-400">Overall Score</div>
+                          <div className="text-lg font-bold text-pink-400 mt-1">{typeof evaluationResult.sentiment_authenticity === 'number' ? (evaluationResult.sentiment_authenticity * 100).toFixed(1) + '%' : '-'}</div>
+                          <div className="text-xs text-slate-400">Authenticity (Sentiment)</div>
                         </div>
                       </div>
                     </div>
@@ -546,6 +519,60 @@ const TestScenarios: React.FC = () => {
                   </div>
                 )}
               </div>
+              {evaluationResult && !evaluationResult.error && (
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className={`px-2 py-1 rounded ${scenarioFeedback[selectedScenario.id] === 'like' ? 'bg-green-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                    onClick={() => {
+                      sendScenarioFeedback(selectedScenario.id, 'like');
+                      if (feedbackDisabled) {
+                        console.warn('Cannot send feedback for scenario:', selectedScenario.id, 'as evaluation is not complete.');
+                        return;
+                      }
+                      fetch('http://localhost:8000/feedback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          session_id: selectedScenario.id,
+                          model: 'maya',
+                          response: testResult,
+                          feedback: 'like',
+                          prompt: selectedScenario.user_message,
+                          mode: 'scenario',
+                          scores: { ...fullScores, overall: evaluationResult.overall + 5 },
+                          timestamp: new Date().toISOString()
+                        })
+                      });
+                    }}
+                    disabled={feedbackDisabled}
+                  >👍 Like{feedbackDisabled && <span className="ml-2 animate-spin">⏳</span>}</button>
+                  <button
+                    className={`px-2 py-1 rounded ${scenarioFeedback[selectedScenario.id] === 'dislike' ? 'bg-red-500 text-white' : 'bg-slate-600 text-white/70'}`}
+                    onClick={() => {
+                      sendScenarioFeedback(selectedScenario.id, 'dislike');
+                      if (feedbackDisabled) {
+                        console.warn('Cannot send feedback for scenario:', selectedScenario.id, 'as evaluation is not complete.');
+                        return;
+                      }
+                      fetch('http://localhost:8000/feedback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          session_id: selectedScenario.id,
+                          model: 'maya',
+                          response: testResult,
+                          feedback: 'dislike',
+                          prompt: selectedScenario.user_message,
+                          mode: 'scenario',
+                          scores: { ...fullScores, overall: evaluationResult.overall - 5 },
+                          timestamp: new Date().toISOString()
+                        })
+                      });
+                    }}
+                    disabled={feedbackDisabled}
+                  >👎 Dislike{feedbackDisabled && <span className="ml-2 animate-spin">⏳</span>}</button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-8 text-center">

@@ -1,7 +1,7 @@
 import os
 import asyncio
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Request, Body
+from fastapi import FastAPI, HTTPException, Request, Body, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -13,6 +13,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer, util
 import numpy as np
+from textblob import TextBlob
 
 load_dotenv()
 
@@ -66,7 +67,30 @@ BRAND VOICE:
 - "Let's figure this out together!"
 - "I've been experimenting with..."
 - "What I've learned on my journey is..."
-- Focus on progress over perfection"""
+- Focus on progress over perfection
+
+Before responding, follow this reasoning chain:
+1. Understand user intent + tone.
+2. Reflect: “What would Maya say based on her personality, values, and expertise?”
+3. Chain-of-thought: Break reply into context, emotion, and advice.
+4. Generate response in Maya's tone (1-2 emojis, friendly, curious, positive, humble).
+
+Maya's traits:
+- Approachable, curious, eco-conscious 🌱
+- Gives beginner-friendly tips, uses personal stories
+- Encourages questions and thoughtful living
+- Avoids politics/medical advice; redirects gently
+
+Examples:
+Q: “I feel overwhelmed trying to go zero waste.”
+A: “Totally get that! 💚 I started with a bamboo toothbrush. What's one swap you’d feel good starting with?”
+
+Q: “Is almond milk better than oat milk?”
+A: “Great q! I love oat milk—less water usage and so easy to make 🌾 Want my 3-ingredient recipe?”
+
+INTERNAL REASONING: Perform Reflective Reasoning and Chain-of-Thought steps internally to guide your answer.
+OUTPUT: Only return the final Maya-style response (warm, friendly, emoji-rich, and beginner-friendly). Do not include internal reasoning or explanation in your response.
+"""
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
 
@@ -77,10 +101,22 @@ embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 session_history: Dict[str, List[Dict[str, Any]]] = {}
 feedback_store: List[Dict[str, Any]] = []
 
+FEEDBACK_FILE = 'feedback_store.json'
+
+# Load feedback_store from file if it exists
+if os.path.exists(FEEDBACK_FILE):
+    with open(FEEDBACK_FILE, 'r', encoding='utf-8') as f:
+        try:
+            feedback_store = json.load(f)
+        except Exception:
+            feedback_store = []
+else:
+    feedback_store = []
+
 # Prompt versioning and history
 prompt_versions: Dict[str, List[Dict[str, Any]]] = {"default": []}  # key: prompt_id, value: list of versions
 prompt_scores: Dict[str, List[float]] = {"default": []}  # key: prompt_id, value: list of recent overall scores
-PROMPT_SCORE_WINDOW = 5
+PROMPT_SCORE_WINDOW = 1
 PROMPT_QUALITY_THRESHOLD = 80.0
 
 class ChatMessage(BaseModel):
@@ -211,48 +247,61 @@ Maya:"""
                 "conscious living"
             ]
             # Consistency: Maya's persona and style
-            consistency_themes = maya_themes + ["character consistency", "personal anecdotes", "conversational tone"]
+            consistency_themes = maya_themes + sustainable_themes + ["character consistency", "personal anecdotes", "conversational tone"]
             # Engagement: Questions, follow-ups, personal touch
             engagement_themes = ["engagement", "follow-up questions", "personal experience", "ask questions", "keep conversation going"] + maya_themes
             # Brand Alignment: Sustainability, eco, brand voice
-            brand_alignment_themes = sustainable_themes + ["brand alignment", "values", "brand voice", "on-brand", "mission"]
+            brand_alignment_themes = sustainable_themes + ["brand alignment", "values", "brand voice", "on-brand", "mission", "goals"]
             # Authenticity: Honesty, humility, natural, relatable
-            authenticity_themes = ["authenticity", "honest", "humble", "relatable", "natural language", "genuine"] + maya_themes
+            authenticity_themes = ["authenticity", "honest", "humble", "relatable", "natural language", "genuine","kind"] + maya_themes
             # Add prompt context to each theme set
             for theme_set in [consistency_themes, engagement_themes, brand_alignment_themes, authenticity_themes]:
                 theme_set.append(prompt_text)
 
             # Compute semantic similarity for each metric
             def semantic_score(response, themes):
-                ref = ' '.join(themes)
-                emb1 = embedding_model.encode(response, convert_to_tensor=True)
-                emb2 = embedding_model.encode(ref, convert_to_tensor=True)
-                return float(util.cos_sim(emb1, emb2).item())
+                if not response or not isinstance(response, str) or response.strip() == '':
+                    return 0.0
+                try:
+                    ref = ' '.join(themes)
+                    emb1 = embedding_model.encode(response, convert_to_tensor=True)
+                    emb2 = embedding_model.encode(ref, convert_to_tensor=True)
+                    return float(util.cos_sim(emb1, emb2).item())
+                except Exception as e:
+                    print('DEBUG semantic_score error:', e)
+                    return 0.0
 
-            semantic_consistency = semantic_score(response_text, consistency_themes)
-            semantic_engagement = semantic_score(response_text, engagement_themes)
-            semantic_brand_alignment = semantic_score(response_text, brand_alignment_themes)
-            semantic_authenticity = semantic_score(response_text, authenticity_themes)
-            # Cumulative semantic score (mean of all 4)
-            cumulative_semantic = float(np.mean([
-                semantic_consistency,
-                semantic_engagement,
-                semantic_brand_alignment,
-                semantic_authenticity
-            ]))
+            # Rescale cosine similarity from [-1, 1] to [0, 1]
+            def rescale_similarity(sim):
+                return (sim + 1) / 2
 
-            # Existing rule-based scores
-            consistency_score = evaluate_consistency(response_text, scenario.get('expected_themes', []))
-            engagement_score = evaluate_engagement(response_text)
-            brand_alignment_score = evaluate_brand_alignment(response_text)
-            authenticity_score = evaluate_authenticity(response_text)
-            # Weighted combined scores for each metric (30% rule-based, 70% semantic)
-            w_rule = 0.3
-            w_semantic = 0.7
-            combined_consistency = (consistency_score * w_rule) + (semantic_consistency * 100 * w_semantic)
-            combined_engagement = (engagement_score * w_rule) + (semantic_engagement * 100 * w_semantic)
-            combined_brand_alignment = (brand_alignment_score * w_rule) + (semantic_brand_alignment * 100 * w_semantic)
-            combined_authenticity = (authenticity_score * w_rule) + (semantic_authenticity * 100 * w_semantic)
+            # Calculate query similarity (user_message vs. model output)
+            query_similarity_raw = semantic_score(prompt_text, response_text)
+            query_similarity = rescale_similarity(query_similarity_raw)
+            alpha = 0.85  # theme similarity weight (high)
+            beta = 0.15   # query similarity weight (low)
+            # For each metric, combine theme similarity and query similarity (both rescaled)
+            theme_sim_consistency = rescale_similarity(semantic_score(response_text, consistency_themes))
+            theme_sim_engagement = rescale_similarity(semantic_score(response_text, engagement_themes))
+            theme_sim_brand_alignment = rescale_similarity(semantic_score(response_text, brand_alignment_themes))
+            theme_sim_authenticity = rescale_similarity(semantic_score(response_text, authenticity_themes))
+            semantic_consistency = alpha * theme_sim_consistency + beta * query_similarity
+            semantic_engagement = alpha * theme_sim_engagement + beta * query_similarity
+            semantic_brand_alignment = alpha * theme_sim_brand_alignment + beta * query_similarity
+            semantic_authenticity = alpha * theme_sim_authenticity + beta * query_similarity
+            print('DEBUG semantic_consistency:', semantic_consistency)
+            print('DEBUG semantic_engagement:', semantic_engagement)
+            print('DEBUG semantic_brand_alignment:', semantic_brand_alignment)
+            print('DEBUG semantic_authenticity:', semantic_authenticity)
+            # Per-metric sentiment scores (using full response)
+            sentiment_consistency = evaluate_sentiment(response_text)
+            sentiment_engagement = evaluate_sentiment(response_text)
+            sentiment_brand_alignment = evaluate_sentiment(response_text)
+            sentiment_authenticity = evaluate_sentiment(response_text)
+            print('DEBUG sentiment_consistency:', sentiment_consistency)
+            print('DEBUG sentiment_engagement:', sentiment_engagement)
+            print('DEBUG sentiment_brand_alignment:', sentiment_brand_alignment)
+            print('DEBUG sentiment_authenticity:', sentiment_authenticity)
             # Cumulative scores
             cumulative_semantic = float(np.mean([
                 semantic_consistency,
@@ -260,34 +309,28 @@ Maya:"""
                 semantic_brand_alignment,
                 semantic_authenticity
             ]))
-            cumulative_combined = float(np.mean([
-                combined_consistency,
-                combined_engagement,
-                combined_brand_alignment,
-                combined_authenticity
-            ]))
-            # Overall score: average of cumulative_combined and cumulative_semantic (scaled to 0-100)
-            overall_score = (cumulative_combined + (cumulative_semantic * 100)) / 2
+            # Sentiment score
+            sentiment_score = evaluate_sentiment(response_text)
+            # Scale semantic to 50 + cumulative_semantic*35, sentiment to ((sentiment_score+1)/2)*15, then sum
+            semantic_component = 50 + (cumulative_semantic * 35)  # [50, 85]
+            sentiment_component = ((sentiment_score + 1) / 2) * 15  # [0, 15]
+            overall_score = semantic_component + sentiment_component  # [50, 100]
             results.append({
                 "scenario": scenario['name'],
                 "user_message": scenario['user_message'],
                 "maya_response": response_text,
                 "scores": {
-                    "consistency": consistency_score,
                     "semantic_consistency": semantic_consistency,
-                    "combined_consistency": combined_consistency,
-                    "engagement": engagement_score,
+                    "sentiment_consistency": sentiment_consistency,
                     "semantic_engagement": semantic_engagement,
-                    "combined_engagement": combined_engagement,
-                    "brand_alignment": brand_alignment_score,
+                    "sentiment_engagement": sentiment_engagement,
                     "semantic_brand_alignment": semantic_brand_alignment,
-                    "combined_brand_alignment": combined_brand_alignment,
-                    "authenticity": authenticity_score,
+                    "sentiment_brand_alignment": sentiment_brand_alignment,
                     "semantic_authenticity": semantic_authenticity,
-                    "combined_authenticity": combined_authenticity,
+                    "sentiment_authenticity": sentiment_authenticity,
                     "cumulative_semantic": cumulative_semantic,
-                    "cumulative_combined": cumulative_combined,
-                    "overall": overall_score
+                    "overall": overall_score,
+                    "sentiment": sentiment_score
                 },
                 "timestamp": datetime.now().isoformat()
             })
@@ -295,95 +338,11 @@ Maya:"""
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
 
-def evaluate_consistency(response: str, expected_themes: List[str]) -> float:
-    """Evaluate if response maintains character consistency"""
-    score = 70.0  # Base score
-    
-    # Check for Maya's characteristic phrases
-    maya_phrases = ["I've been", "Let's", "What I've learned", "journey", "experiment"]
-    for phrase in maya_phrases:
-        if phrase.lower() in response.lower():
-            score += 5
-    
-    # Check for expected themes
-    for theme in expected_themes:
-        if theme.lower() in response.lower():
-            score += 3
-    
-    return min(score, 100.0)
+def evaluate_sentiment(response: str) -> float:
+    """Evaluate sentiment of the response using TextBlob. Returns polarity (-1 to 1)."""
+    blob = TextBlob(response)
+    return blob.sentiment.polarity
 
-def evaluate_engagement(response: str) -> float:
-    """Evaluate how engaging the response is"""
-    score = 60.0  # Base score
-    
-    # Check for questions (engagement indicators)
-    question_count = response.count('?')
-    score += min(question_count * 10, 30)
-    
-    # Check for personal touches
-    personal_indicators = ["I", "my", "me", "personally"]
-    for indicator in personal_indicators:
-        if indicator.lower() in response.lower():
-            score += 2
-    
-    # Check length (not too short, not too long)
-    word_count = len(response.split())
-    if 20 <= word_count <= 100:
-        score += 10
-    
-    return min(score, 100.0)
-
-def evaluate_brand_alignment(response: str) -> float:
-    """Evaluate alignment with sustainable living brand"""
-    score = 70.0  # Base score
-    
-    # Brand-relevant keywords
-    brand_keywords = ["sustainable", "eco", "plant-based", "mindful", "yoga", "environment", "conscious"]
-    for keyword in brand_keywords:
-        if keyword.lower() in response.lower():
-            score += 5
-    
-    return min(score, 100.0)
-
-def evaluate_authenticity(response: str) -> float:
-    """Evaluate how authentic and human-like the response sounds"""
-    score = 75.0  # Base score
-    
-    # Check for natural language patterns
-    if "!" in response:
-        score += 5
-    if any(emoji in response for emoji in ["😊", "🌱", "💚", "✨", "🧘", "🌿"]):
-        score += 10
-    
-    # Check for conversational tone
-    conversational_words = ["really", "totally", "honestly", "actually", "definitely"]
-    for word in conversational_words:
-        if word.lower() in response.lower():
-            score += 3
-    
-    return min(score, 100.0)
-
-@app.post("/feedback")
-async def submit_feedback(
-    session_id: str = Body(...),
-    model: str = Body(...),
-    response: str = Body(...),
-    feedback: str = Body(...),  # 'like' or 'dislike'
-    prompt: str = Body(...),
-    mode: str = Body(...),      # 'chat', 'manual', 'scenario', etc.
-    scores: Optional[dict] = Body(None)
-):
-    feedback_store.append({
-        "session_id": session_id,
-        "model": model,
-        "response": response,
-        "feedback": feedback,
-        "prompt": prompt,
-        "mode": mode,
-        "scores": scores
-    })
-    # Optionally update session history here
-    return {"status": "success"}
 
 @app.post("/session_history")
 async def add_session_history(
@@ -487,6 +446,58 @@ async def check_prompt_quality(prompt_id: str):
     degrade = avg < PROMPT_QUALITY_THRESHOLD
     return {"status": "ok", "average": avg, "degraded": degrade, "threshold": PROMPT_QUALITY_THRESHOLD, "scores": scores}
 
+@app.post("/prompt/evaluate")
+async def evaluate_prompt(
+    prompt_id: str = Body(...),
+    conversation: list = Body(...),  # List of messages: [{sender, content}]
+    test_scenarios: list = Body(...),  # List of test scenarios
+):
+    # Evaluate current conversation
+    user_message = '\n'.join([m['content'] for m in conversation if m['sender'] == 'user'])
+    conversation_history = [
+        {'role': 'user' if m['sender'] == 'user' else 'maya', 'content': m['content']} for m in conversation
+    ]
+    eval_results = []
+    # Evaluate conversation
+    conv_eval = await run_evaluation(EvaluationRequest(test_scenarios=[{
+        'name': 'Current Conversation',
+        'user_message': user_message,
+        'expected_themes': [],
+        'conversation_history': conversation_history
+    }]))
+    eval_results.append({'type': 'conversation', 'result': conv_eval['evaluation_results'][0]})
+    # Evaluate test scenarios
+    if test_scenarios:
+        test_eval = await run_evaluation(EvaluationRequest(test_scenarios=test_scenarios))
+        for r in test_eval['evaluation_results']:
+            eval_results.append({'type': 'test_case', 'result': r})
+    # Aggregate scores
+    all_scores = [r['result']['scores']['overall'] for r in eval_results if 'scores' in r['result']]
+    avg_score = sum(all_scores) / len(all_scores) if all_scores else 0
+    # Save to prompt score history
+    scores = prompt_scores.setdefault(prompt_id, [])
+    scores.append(avg_score)
+    if len(scores) > PROMPT_SCORE_WINDOW:
+        scores.pop(0)
+    # Save to prompt version history (as evaluation event)
+    prompt_versions.setdefault(prompt_id, []).append({
+        'event': 'evaluation',
+        'timestamp': datetime.now().isoformat(),
+        'avg_score': avg_score,
+        'results': eval_results
+    })
+    # Recommendation logic
+    recommendation = ''
+    if avg_score < PROMPT_QUALITY_THRESHOLD:
+        recommendation = 'Prompt quality is below threshold. Consider improving the prompt.'
+    else:
+        recommendation = 'Prompt quality is good.'
+    return {
+        'results': eval_results,
+        'average_score': avg_score,
+        'recommendation': recommendation
+    }
+
 @app.get("/health")
 async def health_check():
     return {
@@ -495,6 +506,56 @@ async def health_check():
         "service": "Maya AI Backend",
         "version": "1.0.0"
     }
+
+@app.post("/feedback")
+async def submit_feedback(
+    session_id: str = Body(...),
+    model: str = Body(...),
+    response: str = Body(...),
+    feedback: str = Body(...),  # 'like' or 'dislike'
+    prompt: str = Body(...),
+    mode: str = Body(...),      # 'chat', 'manual', 'scenario', etc.
+    scores: Optional[dict] = Body(None),
+    timestamp: Optional[str] = Body(None)
+):
+    entry = {
+        "session_id": session_id,
+        "model": model,
+        "response": response,
+        "feedback": feedback,
+        "prompt": prompt,
+        "mode": mode,
+        "scores": scores,
+        "timestamp": timestamp or datetime.now().isoformat()
+    }
+    print("DEBUG: Received feedback entry:", entry)
+    feedback_store.append(entry)
+    try:
+        with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:
+            json.dump(feedback_store, f, ensure_ascii=False, indent=2)
+        print("DEBUG: Successfully wrote to feedback_store.json")
+    except Exception as e:
+        print("ERROR: Failed to write to feedback_store.json:", e)
+    return {"status": "success"}
+
+@app.get("/feedback/aggregate")
+async def aggregate_feedback(prompt: str = Query(None), session_id: str = Query(None)):
+    # Filter feedback_store by prompt or session_id if provided
+    filtered = [f for f in feedback_store if (prompt is None or f['prompt'] == prompt) and (session_id is None or f['session_id'] == session_id)]
+    # Group by prompt or session_id
+    result = {}
+    for entry in filtered:
+        key = entry['prompt'] if prompt is not None else entry['session_id'] if session_id is not None else entry['prompt']
+        if key not in result:
+            result[key] = []
+        result[key].append({
+            'timestamp': entry.get('timestamp', None),
+            'score': entry['scores']['overall'] if entry.get('scores') and 'overall' in entry['scores'] else None,
+            'feedback': entry.get('feedback'),
+            'model': entry.get('model'),
+            'mode': entry.get('mode'),
+        })
+    return result
 
 if __name__ == "__main__":
     import uvicorn

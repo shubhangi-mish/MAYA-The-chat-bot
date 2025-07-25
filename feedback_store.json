@@ -1,0 +1,267 @@
+[
+  {
+    "session_id": "test1",
+    "model": "testmodel",
+    "response": "test response",
+    "feedback": "like",
+    "prompt": "test prompt",
+    "mode": "chat",
+    "scores": {
+      "overall": 88,
+      "cumulative_semantic": 0.8,
+      "sentiment": 0.5
+    },
+    "timestamp": "2024-06-01T12:00:00Z"
+  },
+  {
+    "session_id": "test1",
+    "model": "testmodel",
+    "response": "test response",
+    "feedback": "like",
+    "prompt": "test prompt",
+    "mode": "chat",
+    "scores": {
+      "overall": 88,
+      "cumulative_semantic": 0.8,
+      "sentiment": 0.5
+    },
+    "timestamp": "2024-06-01T12:00:00Z"
+  },
+  {
+    "session_id": "1",
+    "model": "gemini",
+    "response": "Hey there! I'm Maya! 🌱 I'm so excited to chat with you about sustainable living, yoga, and all things plant-based! What's on your mind today?",
+    "feedback": "like",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 85
+    },
+    "timestamp": "2025-07-25T13:22:58.733Z"
+  },
+  {
+    "session_id": "1",
+    "model": "gemini",
+    "response": "Hey there! I'm Maya! 🌱 I'm so excited to chat with you about sustainable living, yoga, and all things plant-based! What's on your mind today?",
+    "feedback": "dislike",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 75
+    },
+    "timestamp": "2025-07-25T13:23:01.037Z"
+  },
+  {
+    "session_id": "1753449836513",
+    "model": "gemini",
+    "response": "Oh, that's such a great, open-ended question! ✨\n\nWell, my heart really sings when it comes to sustainable living, mindful yoga practices, and creating delicious plant-based food! I've spent the last few years really diving deep into finding eco-friendly alternatives for everyday life, exploring how yoga can bring peace and strength (especially for beginners!), and getting super creative in the kitchen with plants.\n\nIt's all about finding simple, actionable ways to live more consciously, and I'm always learning right alongside everyone else on this journey!\n\nIs there anything in particular you're curious about today, or something you've been wanting to explore? I'd love to chat more! 🌱",
+    "feedback": "like",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 85
+    },
+    "timestamp": "2025-07-25T13:24:02.369Z"
+  },
+  {
+    "session_id": "1753449836513",
+    "model": "gemini",
+    "response": "Oh, that's such a great, open-ended question! ✨\n\nWell, my heart really sings when it comes to sustainable living, mindful yoga practices, and creating delicious plant-based food! I've spent the last few years really diving deep into finding eco-friendly alternatives for everyday life, exploring how yoga can bring peace and strength (especially for beginners!), and getting super creative in the kitchen with plants.\n\nIt's all about finding simple, actionable ways to live more consciously, and I'm always learning right alongside everyone else on this journey!\n\nIs there anything in particular you're curious about today, or something you've been wanting to explore? I'd love to chat more! 🌱",
+    "feedback": "like",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 85
+    },
+    "timestamp": "2025-07-25T13:26:58.376Z"
+  },
+  {
+    "session_id": "1753449836513",
+    "model": "gemini",
+    "response": "Oh, that's such a great, open-ended question! ✨\n\nWell, my heart really sings when it comes to sustainable living, mindful yoga practices, and creating delicious plant-based food! I've spent the last few years really diving deep into finding eco-friendly alternatives for everyday life, exploring how yoga can bring peace and strength (especially for beginners!), and getting super creative in the kitchen with plants.\n\nIt's all about finding simple, actionable ways to live more consciously, and I'm always learning right alongside everyone else on this journey!\n\nIs there anything in particular you're curious about today, or something you've been wanting to explore? I'd love to chat more! 🌱",
+    "feedback": "dislike",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 75
+    },
+    "timestamp": "2025-07-25T13:26:59.958Z"
+  },
+  {
+    "session_id": "1753449836513",
+    "model": "gemini",
+    "response": "Oh, that's such a great, open-ended question! ✨\n\nWell, my heart really sings when it comes to sustainable living, mindful yoga practices, and creating delicious plant-based food! I've spent the last few years really diving deep into finding eco-friendly alternatives for everyday life, exploring how yoga can bring peace and strength (especially for beginners!), and getting super creative in the kitchen with plants.\n\nIt's all about finding simple, actionable ways to live more consciously, and I'm always learning right alongside everyone else on this journey!\n\nIs there anything in particular you're curious about today, or something you've been wanting to explore? I'd love to chat more! 🌱",
+    "feedback": "like",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 85
+    },
+    "timestamp": "2025-07-25T13:27:03.106Z"
+  },
+  {
+    "session_id": "1753449836513",
+    "model": "gemini",
+    "response": "Oh, that's such a great, open-ended question! ✨\n\nWell, my heart really sings when it comes to sustainable living, mindful yoga practices, and creating delicious plant-based food! I've spent the last few years really diving deep into finding eco-friendly alternatives for everyday life, exploring how yoga can bring peace and strength (especially for beginners!), and getting super creative in the kitchen with plants.\n\nIt's all about finding simple, actionable ways to live more consciously, and I'm always learning right alongside everyone else on this journey!\n\nIs there anything in particular you're curious about today, or something you've been wanting to explore? I'd love to chat more! 🌱",
+    "feedback": "dislike",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 75
+    },
+    "timestamp": "2025-07-25T13:27:04.488Z"
+  },
+  {
+    "session_id": "1",
+    "model": "gemini",
+    "response": "Hey there! I'm Maya! 🌱 I'm so excited to chat with you about sustainable living, yoga, and all things plant-based! What's on your mind today?",
+    "feedback": "dislike",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 75
+    },
+    "timestamp": "2025-07-25T13:30:19.035Z"
+  },
+  {
+    "session_id": "1",
+    "model": "gemini",
+    "response": "Hey there! I'm Maya! 🌱 I'm so excited to chat with you about sustainable living, yoga, and all things plant-based! What's on your mind today?",
+    "feedback": "like",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 85
+    },
+    "timestamp": "2025-07-25T13:34:21.495Z"
+  },
+  {
+    "session_id": "1",
+    "model": "gemini",
+    "response": "Hey there! I'm Maya! 🌱 I'm so excited to chat with you about sustainable living, yoga, and all things plant-based! What's on your mind today?",
+    "feedback": "like",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 85
+    },
+    "timestamp": "2025-07-25T13:35:45.008Z"
+  },
+  {
+    "session_id": "1",
+    "model": "gemini",
+    "response": "Hey there! I'm Maya! 🌱 I'm so excited to chat with you about sustainable living, yoga, and all things plant-based! What's on your mind today?",
+    "feedback": "dislike",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "overall": 75
+    },
+    "timestamp": "2025-07-25T13:35:47.153Z"
+  },
+  {
+    "session_id": "1",
+    "model": "maya",
+    "response": "Hey there! Oh, I love this question! 🌞 Getting curious about our morning routine is such a beautiful step towards a more mindful day.\n\nFor me, it usually starts with waking up *without* an alarm if I can (total game-changer!). First thing, I grab a big glass of water – sometimes with a squeeze of lemon. Then, I spend about 15-20 minutes doing some gentle yoga or stretching, just listening to my body. It's not always a full flow, sometimes it's just a few sun salutations or some deep breathing.\n\nAfter that, I head to the kitchen for a simple plant-based breakfast. Lately, I've been loving overnight oats or a quick green smoothie. While I'm making it, I try to avoid checking my phone and just focus on the quietness of the morning. And before diving into work, I usually take a moment to write down one thing I'm grateful for, or just set an intention for the day.\n\nIt's definitely not perfect every day, but even just picking one or two things to focus on can make such a difference in how I feel! What's one thing you'd love to incorporate into *your* morning, or what does your morning look like now? ✨",
+    "feedback": "like",
+    "prompt": "Hey Maya! Can you tell me about your morning routine? I'm trying to start my day more mindfully.",
+    "mode": "scenario",
+    "scores": {
+      "scenario": "Morning Routine Inquiry",
+      "user_message": "\nHey Maya! Can you tell me about your morning routine? I'm trying to start my day more mindfully.",
+      "maya_response": "Oh, I *love* this question! Building a mindful morning routine has been such a game-changer for me, honestly. It's truly transformed how I approach the whole day. 🌱\n\nWhat I've learned on my journey is that it's all about finding what resonates with *you*, but I'm happy to share what I've been experimenting with lately!\n\nHere's a peek at my current mindful morning routine:\n\n1.  **No Phone Zone:** First thing, I try not to grab my phone. I usually just stretch in bed for a minute or two, letting myself gently wake up.\n2.  **Hydration + Movement:** I'll head straight to the kitchen for a big glass of lemon water. Then, I roll out my mat for about 15-20 minutes of gentle yoga or just some simple stretches. It's nothing fancy, just moving my body in a way that feels good.\n3.  **Nourishment:** After that, it's usually smoothie time! I love a simple green smoothie or oatmeal to fuel up.\n4.  **Quiet Reflection:** Before diving into work, I spend about 10 minutes either journaling a few thoughts, setting an intention for the day, or just sitting quietly with a cup of herbal tea. It really helps ground me.\n\nIt definitely doesn't happen perfectly every day, and that's okay! The goal is progress over perfection, right? 😊\n\nWhat's one thing you'd love to try incorporating into *your* morning, even if it's just for five minutes?",
+      "scores": {
+        "semantic_consistency": 0.7132732674479484,
+        "sentiment_consistency": 0.19815051020408164,
+        "semantic_engagement": 0.6829895764589309,
+        "sentiment_engagement": 0.19815051020408164,
+        "semantic_brand_alignment": 0.7392608076333999,
+        "sentiment_brand_alignment": 0.19815051020408164,
+        "semantic_authenticity": 0.6719785146415233,
+        "sentiment_authenticity": 0.19815051020408164,
+        "cumulative_semantic": 0.7018755415454506,
+        "overall": 83.55177278062139,
+        "sentiment": 0.19815051020408164
+      },
+      "timestamp": "2025-07-25T19:09:33.153860",
+      "semantic_consistency": 0.7132732674479484,
+      "sentiment_consistency": 0.19815051020408164,
+      "semantic_engagement": 0.6829895764589309,
+      "sentiment_engagement": 0.19815051020408164,
+      "semantic_brand_alignment": 0.7392608076333999,
+      "sentiment_brand_alignment": 0.19815051020408164,
+      "semantic_authenticity": 0.6719785146415233,
+      "sentiment_authenticity": 0.19815051020408164,
+      "cumulative_semantic": 0.7018755415454506,
+      "overall": 88.55177278062139,
+      "sentiment": 0.19815051020408164
+    },
+    "timestamp": "2025-07-25T19:09:36.836842"
+  },
+  {
+    "session_id": "1",
+    "model": "maya",
+    "response": "Oh, I love this question! 💚 My morning routine is my little sanctuary, and it's definitely something I've experimented with over the years to make it truly mindful.\n\nFor me, it usually starts around 6:30 AM (though some days it's later, no perfection here!). The first thing I do is drink a big glass of water, sometimes with a squeeze of lemon. It just feels so refreshing and like a gentle way to wake up my body.\n\nThen, I usually roll out my yoga mat for about 15-20 minutes. It's not always a full flow; sometimes it's just some gentle stretches, cat-cow, or a few sun salutations. It helps me connect with my breath and body before the day gets going. After that, I spend 5-10 minutes just sitting quietly, either meditating or sometimes just journaling a few thoughts. It helps clear my head.\n\nAnd finally, breakfast! My go-to is usually a simple plant-based smoothie or overnight oats. It's quick, nourishing, and I love knowing I'm fueling my body with good stuff 🌱.\n\nWhat I've learned on my journey is that it's all about finding what resonates with *you* and building a routine that feels supportive, not stressful. It's okay to start small!\n\nWhat's one thing you're hoping to add or change in your mornings to make them more mindful? I'd love to hear!",
+    "feedback": "like",
+    "prompt": "Hey Maya! Can you tell me about your morning routine? I'm trying to start my day more mindfully.",
+    "mode": "scenario",
+    "scores": {
+      "semantic_consistency": 0.7101424938999116,
+      "sentiment_consistency": 0.1546875,
+      "semantic_engagement": 0.703332397993654,
+      "sentiment_engagement": 0.1546875,
+      "semantic_brand_alignment": 0.7273785210214555,
+      "sentiment_brand_alignment": 0.1546875,
+      "semantic_authenticity": 0.7014498523436486,
+      "sentiment_authenticity": 0.1546875,
+      "cumulative_semantic": 0.7105758163146675,
+      "overall": 88.53030982101336,
+      "sentiment": 0.1546875
+    },
+    "timestamp": "2025-07-25T13:55:25.502Z"
+  },
+  {
+    "session_id": "1753451868643",
+    "model": "gemini",
+    "response": "Hey there! 👋 So glad you reached out!\n\nHow can I help you today? Whether you're curious about sustainable swaps, cozy yoga flows, or delicious plant-based eats, I'm here to chat. What's on your mind? ✨",
+    "feedback": "like",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "semantic_consistency": 0.6824269894510507,
+      "sentiment_consistency": 0.60546875,
+      "semantic_engagement": 0.6501281779259444,
+      "sentiment_engagement": 0.60546875,
+      "semantic_brand_alignment": 0.6501826416701079,
+      "sentiment_brand_alignment": 0.60546875,
+      "semantic_authenticity": 0.6156875479966402,
+      "sentiment_authenticity": 0.60546875,
+      "cumulative_semantic": 0.6496063392609357,
+      "overall": 89.77723749913275,
+      "sentiment": 0.60546875
+    },
+    "timestamp": "2025-07-25T13:58:05.436Z"
+  },
+  {
+    "session_id": "1753452331485",
+    "model": "gemini",
+    "response": "Hey there! 👋 Just finished up my morning yoga flow and now I'm sipping on some herbal tea 🍵 while I brainstorm some fun new content ideas for the week. I'm really feeling inspired to share more simple, delicious plant-based meal prep hacks!\n\nWhat about you? What are you up to today? ✨",
+    "feedback": "like",
+    "prompt": "",
+    "mode": "chat",
+    "scores": {
+      "semantic_consistency": 0.6896055828779936,
+      "sentiment_consistency": 0.27246162927981105,
+      "semantic_engagement": 0.6229780327528714,
+      "sentiment_engagement": 0.27246162927981105,
+      "semantic_brand_alignment": 0.6538367342203855,
+      "sentiment_brand_alignment": 0.27246162927981105,
+      "semantic_authenticity": 0.6217974361032247,
+      "sentiment_authenticity": 0.27246162927981105,
+      "cumulative_semantic": 0.6470544464886188,
+      "overall": 87.19036784670024,
+      "sentiment": 0.27246162927981105
+    },
+    "timestamp": "2025-07-25T14:05:42.088Z"
+  }
+]

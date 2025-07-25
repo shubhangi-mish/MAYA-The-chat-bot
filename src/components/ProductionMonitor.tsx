@@ -1,5 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, AlertTriangle, CheckCircle, Clock, TrendingDown, TrendingUp } from 'lucide-react';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+import { useRef } from 'react';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const ProductionMonitor: React.FC = () => {
   const [metrics, setMetrics] = useState({
@@ -44,6 +58,48 @@ const ProductionMonitor: React.FC = () => {
     { time: '20:00', consistency: 92, engagement: 91, brand_alignment: 91 },
   ]);
 
+  const [promptScores, setPromptScores] = useState<{ [prompt: string]: { timestamp: string; score: number }[] }>({});
+  const [selectedPrompt, setSelectedPrompt] = useState<string>('');
+  const [recentScores, setRecentScores] = useState<any[]>([]);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    fetch('/feedback/aggregate')
+      .then(res => res.json())
+      .then(data => {
+        setPromptScores(data);
+        const prompts = Object.keys(data);
+        if (prompts.length > 0 && !selectedPrompt) setSelectedPrompt(prompts[0]);
+      });
+  }, []);
+
+  // Fetch and update recent scores
+  const fetchRecentScores = () => {
+    fetch('http://localhost:8000/feedback/aggregate')
+      .then(res => res.json())
+      .then(data => {
+        console.log('Raw aggregate data:', data);
+        // Flatten all feedback entries, add prompt as a field
+        let all: any[] = [];
+        Object.entries(data).forEach(([prompt, entries]) => {
+          (entries as any[]).forEach((entry: any) => {
+            all.push({ ...entry, prompt });
+          });
+        });
+        // Sort by timestamp descending, filter only by timestamp
+        all = all.filter(e => e.timestamp).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        console.log('Flattened all:', all);
+        setRecentScores(all.slice(0, 10).reverse()); // last 10, oldest first
+      });
+  };
+
+  useEffect(() => {
+    fetchRecentScores();
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    pollingRef.current = setInterval(fetchRecentScores, 5000);
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, []);
+
   const getAlertIcon = (type: string) => {
     switch (type) {
       case 'error':
@@ -71,6 +127,51 @@ const ProductionMonitor: React.FC = () => {
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  const promptOptions = Object.keys(promptScores);
+  const scoreData = selectedPrompt && promptScores[selectedPrompt] ? promptScores[selectedPrompt] : [];
+  const chartData = {
+    labels: scoreData.map(d => d.timestamp ? new Date(d.timestamp).toLocaleString() : ''),
+    datasets: [
+      {
+        label: 'Score',
+        data: scoreData.map(d => d.score),
+        borderColor: 'rgb(34,197,94)',
+        backgroundColor: 'rgba(34,197,94,0.2)',
+        tension: 0.3,
+        pointRadius: 3,
+      }
+    ]
+  };
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      title: { display: true, text: 'Prompt Score Over Time' }
+    },
+    scales: {
+      y: { min: 0, max: 100, title: { display: true, text: 'Score' } },
+      x: { title: { display: true, text: 'Time' } }
+    }
+  };
+
+  console.log('Recent scores for chart:', recentScores);
+
+  // Remove the Prompt Score Trend chart and add a Prompt Health meter
+  // Calculate prompt health based on recentScores
+  const healthThreshold = 80;
+  const warningThreshold = 70;
+  const recentOverallScores = recentScores.map(e => e.score).filter(s => typeof s === 'number');
+  const avgScore = recentOverallScores.length > 0 ? recentOverallScores.reduce((a, b) => a + b, 0) / recentOverallScores.length : null;
+  let healthColor = 'bg-green-500';
+  let healthText = 'Prompt is healthy';
+  if (avgScore !== null && avgScore < healthThreshold && avgScore >= warningThreshold) {
+    healthColor = 'bg-yellow-400';
+    healthText = 'Prompt quality is declining. Consider reviewing soon.';
+  } else if (avgScore !== null && avgScore < warningThreshold) {
+    healthColor = 'bg-red-500';
+    healthText = 'Prompt quality is poor. Prompt reconsideration needed!';
+  }
 
   return (
     <div className="space-y-6">
@@ -133,86 +234,80 @@ const ProductionMonitor: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Performance Chart */}
-        <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Performance Trends (24h)</h3>
-          
-          <div className="space-y-4">
-            {performanceData.map((data, index) => (
-              <div key={index} className="flex items-center gap-4">
-                <div className="text-sm text-slate-400 w-12">{data.time}</div>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 w-24">Consistency</span>
-                    <div className="flex-1 bg-slate-800/50 rounded-full h-2">
-                      <div 
-                        className="bg-gradient-to-r from-green-400 to-cyan-400 h-2 rounded-full"
-                        style={{ width: `${data.consistency}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-slate-300 w-8">{data.consistency}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 w-24">Engagement</span>
-                    <div className="flex-1 bg-slate-800/50 rounded-full h-2">
-                      <div 
-                        className="bg-gradient-to-r from-purple-400 to-pink-400 h-2 rounded-full"
-                        style={{ width: `${data.engagement}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-slate-300 w-8">{data.engagement}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-400 w-24">Brand Align</span>
-                    <div className="flex-1 bg-slate-800/50 rounded-full h-2">
-                      <div 
-                        className="bg-gradient-to-r from-yellow-400 to-orange-400 h-2 rounded-full"
-                        style={{ width: `${data.brand_alignment}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-slate-300 w-8">{data.brand_alignment}</span>
-                  </div>
+      {/* Remove the Prompt Score Trend chart and add a Prompt Health meter */}
+      <div className="w-full flex flex-col items-center mb-8">
+        <div className={`rounded-full w-48 h-48 flex flex-col items-center justify-center shadow-lg mb-4 ${healthColor}`}
+          style={{ fontSize: '2.5rem', color: 'white', fontWeight: 'bold' }}>
+          {avgScore !== null ? avgScore.toFixed(1) : '--'}
+          <div className="text-lg font-semibold mt-2 text-white text-center px-4">{healthText}</div>
+        </div>
+        <div className="text-slate-400 text-sm">Prompt Health (last 10 evaluations)</div>
+      </div>
+      <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6 w-full" style={{ minHeight: '500px', maxWidth: '100%' }}>
+        <h3 className="text-2xl font-bold text-white mb-6">Performance Trends (Last 10 Evaluations)</h3>
+        <div style={{ height: '350px' }}>
+          <Line
+            data={{
+              labels: recentScores.map(e => e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : ''),
+              datasets: [
+                {
+                  label: 'Overall',
+                  data: recentScores.map(e => e.score),
+                  borderColor: 'rgb(34,197,94)',
+                  backgroundColor: 'rgba(34,197,94,0.2)',
+                  tension: 0.3,
+                  pointRadius: 3,
+                }
+              ]
+            }}
+            options={{
+              responsive: true,
+              plugins: {
+                legend: { display: true, labels: { font: { size: 18 } } },
+                title: { display: true, text: 'Recent Prompt Scores (Overall Only)', font: { size: 24 } }
+              },
+              scales: {
+                y: { min: 0, max: 100, title: { display: true, text: 'Score', font: { size: 18 } }, ticks: { font: { size: 16 } } },
+                x: { title: { display: true, text: 'Time', font: { size: 18 } }, ticks: { font: { size: 16 } } }
+              }
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Alerts */}
+      <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">System Alerts</h3>
+        
+        <div className="space-y-3">
+          {alerts.map((alert) => (
+            <div 
+              key={alert.id}
+              className={`rounded-lg border p-3 ${getAlertBg(alert.type, alert.resolved)}`}
+            >
+              <div className="flex items-start gap-3">
+                {getAlertIcon(alert.type)}
+                <div className="flex-1">
+                  <p className={`text-sm ${alert.resolved ? 'text-slate-400' : 'text-slate-200'}`}>
+                    {alert.message}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {formatTime(alert.timestamp)}
+                    {alert.resolved && <span className="ml-2 text-green-400">• Resolved</span>}
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
 
-        {/* Alerts */}
-        <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">System Alerts</h3>
-          
-          <div className="space-y-3">
-            {alerts.map((alert) => (
-              <div 
-                key={alert.id}
-                className={`rounded-lg border p-3 ${getAlertBg(alert.type, alert.resolved)}`}
-              >
-                <div className="flex items-start gap-3">
-                  {getAlertIcon(alert.type)}
-                  <div className="flex-1">
-                    <p className={`text-sm ${alert.resolved ? 'text-slate-400' : 'text-slate-200'}`}>
-                      {alert.message}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {formatTime(alert.timestamp)}
-                      {alert.resolved && <span className="ml-2 text-green-400">• Resolved</span>}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-slate-600/50">
-            <h4 className="text-sm font-medium text-slate-300 mb-2">Automated Monitoring</h4>
-            <div className="space-y-2 text-xs text-slate-400">
-              <div>• Response time threshold: &gt;2s</div>
-              <div>• Consistency score threshold: &lt;80%</div>
-              <div>• Error rate threshold: &gt;5%</div>
-              <div>• Satisfaction score threshold: &lt;4.0</div>
-            </div>
+        <div className="mt-4 pt-4 border-t border-slate-600/50">
+          <h4 className="text-sm font-medium text-slate-300 mb-2">Automated Monitoring</h4>
+          <div className="space-y-2 text-xs text-slate-400">
+            <div>• Response time threshold: &gt;2s</div>
+            <div>• Consistency score threshold: &lt;80%</div>
+            <div>• Error rate threshold: &gt;5%</div>
+            <div>• Satisfaction score threshold: &lt;4.0</div>
           </div>
         </div>
       </div>

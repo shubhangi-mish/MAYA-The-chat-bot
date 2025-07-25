@@ -47,6 +47,8 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
   const chatIteration = useRef(0);
   const manualIteration = useRef(0);
   const [currentPrompt, setCurrentPrompt] = useState('');
+  // Add state to track full evaluation results per model and mode
+  const [evalFullScores, setEvalFullScores] = useState<{ [key: string]: any }>({});
 
   // Fetch the latest prompt from PromptManager
   const fetchCurrentPrompt = async () => {
@@ -134,6 +136,19 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       });
       const evalData = await evalRes.json();
       setChatEval(evalData.evaluation_results);
+      // Send prompt score for quality tracking
+      if (evalData.evaluation_results && evalData.evaluation_results[0]?.scores?.overall) {
+        await fetch('/prompt/score', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt_id: PROMPT_ID,
+            score: evalData.evaluation_results[0].scores.overall
+          })
+        });
+      }
+      // Store full scores
+      setEvalFullScores(full => ({ ...full, 'gemini_chat': evalData.evaluation_results[0].scores, 'openai_chat': evalData.evaluation_results[1].scores }));
     } catch (err) {
       setErrorChat('Error comparing models on conversation. Please try again.');
     } finally {
@@ -201,6 +216,19 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
       });
       const evalData = await evalRes.json();
       setManualEval(evalData.evaluation_results);
+      // Send prompt score for quality tracking
+      if (evalData.evaluation_results && evalData.evaluation_results[0]?.scores?.overall) {
+        await fetch('/prompt/score', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt_id: PROMPT_ID,
+            score: evalData.evaluation_results[0].scores.overall
+          })
+        });
+      }
+      // Store full scores
+      setEvalFullScores(full => ({ ...full, 'gemini_manual': evalData.evaluation_results[0].scores, 'openai_manual': evalData.evaluation_results[1].scores }));
     } catch (err) {
       setErrorManual('Error comparing models on manual prompt. Please try again.');
     } finally {
@@ -249,16 +277,40 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
     else setManualHistory(h => [...h, entry]);
     // If disliked, reflect and iterate
     // (Feedback state is updated asynchronously, so check after user action)
+    // Store full scores
+    setEvalFullScores(full => ({ ...full, [`${model}_${mode}`]: evalData.evaluation_results[0].scores }));
   };
 
   const sendFeedback = async (model: 'gemini' | 'openai', type: 'like' | 'dislike', mode: 'chat' | 'manual') => {
     if (mode === 'chat') setChatFeedback(fb => ({ ...fb, [model]: type }));
     else setManualFeedback(fb => ({ ...fb, [model]: type }));
+    // Find the last history entry
+    const history = mode === 'chat' ? chatHistory : manualHistory;
+    const last = history.filter(h => h.model === model).slice(-1)[0];
+    if (!last) return;
+    // Adjust score
+    const key = `${model}_${mode}`;
+    const fullScores = evalFullScores[key];
+    const adjustedScore = type === 'like' ? (last.scores?.overall || 0) + 5 : type === 'dislike' ? (last.scores?.overall || 0) - 5 : (last.scores?.overall || 0);
+    if (!fullScores) return;
+    console.log('Submitting feedback with scores:', { ...fullScores, overall: adjustedScore });
+    // Send feedback to backend
+    fetch('http://localhost:8000/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: 'default',
+        model,
+        response: last.response,
+        feedback: type,
+        prompt: last.prompt,
+        mode,
+        scores: { ...fullScores, overall: adjustedScore },
+        timestamp: new Date().toISOString()
+      })
+    });
     if (type === 'dislike') {
-      // Get last history entry
-      const history = mode === 'chat' ? chatHistory : manualHistory;
-      const last = history.filter(h => h.model === model).slice(-1)[0];
-      if (!last || (last.iteration ?? 0) >= MAX_ITERATIONS - 1) return;
+      if ((last.iteration ?? 0) >= MAX_ITERATIONS - 1) return;
       // Reflect to get improved prompt
       const reflectRes = await fetch('http://localhost:8000/reflect', {
         method: 'POST',
@@ -281,77 +333,45 @@ const ModelComparison: React.FC<ModelComparisonProps> = ({ messages }) => {
   const renderEval = (evalObj: any) => (
     <div className="mt-4">
       <h5 className="text-lg font-bold text-white mb-2">Evaluation Scores</h5>
-      <div className="text-xs text-slate-400 mb-2">Combined = 30% Rule-based, 70% Semantic</div>
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+      <div className="text-xs text-slate-400 mb-2">Overall = 70% Semantic, 30% Sentiment</div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
         <div className="text-center">
           <div className="text-3xl font-bold text-yellow-400">{evalObj.overall?.toFixed(1)}</div>
           <div className="text-sm text-slate-400">Overall Score</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold text-green-400">{evalObj.consistency?.toFixed(1)}</div>
-          <div className="text-sm text-slate-400">Consistency (Rule)</div>
+          <div className="text-xl font-bold text-cyan-300">{(evalObj.cumulative_semantic * 100).toFixed(1)}%</div>
+          <div className="text-xs text-slate-400">Cumulative Semantic</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold text-blue-400">{evalObj.engagement?.toFixed(1)}</div>
-          <div className="text-sm text-slate-400">Engagement (Rule)</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold text-purple-400">{evalObj.brand_alignment?.toFixed(1)}</div>
-          <div className="text-sm text-slate-400">Brand Alignment (Rule)</div>
-        </div>
-        <div className="text-center">
-          <div className="text-2xl font-bold text-pink-400">{evalObj.authenticity?.toFixed(1)}</div>
-          <div className="text-sm text-slate-400">Authenticity (Rule)</div>
+          <div className="text-xl font-bold text-pink-400">{typeof evalObj.sentiment === 'number' ? (evalObj.sentiment * 100).toFixed(1) + '%' : '-'}</div>
+          <div className="text-xs text-slate-400">Sentiment (Polarity)</div>
         </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
         <div className="text-center">
           <div className="text-lg font-bold text-cyan-300">{(evalObj.semantic_consistency * 100).toFixed(1)}%</div>
           <div className="text-xs text-slate-400">Consistency (Semantic)</div>
+          <div className="text-lg font-bold text-pink-400 mt-1">{typeof evalObj.sentiment_consistency === 'number' ? (evalObj.sentiment_consistency * 100).toFixed(1) + '%' : '-'}</div>
+          <div className="text-xs text-slate-400">Consistency (Sentiment)</div>
         </div>
         <div className="text-center">
           <div className="text-lg font-bold text-cyan-300">{(evalObj.semantic_engagement * 100).toFixed(1)}%</div>
           <div className="text-xs text-slate-400">Engagement (Semantic)</div>
+          <div className="text-lg font-bold text-pink-400 mt-1">{typeof evalObj.sentiment_engagement === 'number' ? (evalObj.sentiment_engagement * 100).toFixed(1) + '%' : '-'}</div>
+          <div className="text-xs text-slate-400">Engagement (Sentiment)</div>
         </div>
         <div className="text-center">
           <div className="text-lg font-bold text-cyan-300">{(evalObj.semantic_brand_alignment * 100).toFixed(1)}%</div>
           <div className="text-xs text-slate-400">Brand Alignment (Semantic)</div>
+          <div className="text-lg font-bold text-pink-400 mt-1">{typeof evalObj.sentiment_brand_alignment === 'number' ? (evalObj.sentiment_brand_alignment * 100).toFixed(1) + '%' : '-'}</div>
+          <div className="text-xs text-slate-400">Brand Alignment (Sentiment)</div>
         </div>
         <div className="text-center">
           <div className="text-lg font-bold text-cyan-300">{(evalObj.semantic_authenticity * 100).toFixed(1)}%</div>
           <div className="text-xs text-slate-400">Authenticity (Semantic)</div>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
-        <div className="text-center">
-          <div className="text-lg font-bold text-orange-400">{evalObj.combined_consistency?.toFixed(1)}</div>
-          <div className="text-xs text-slate-400">Consistency (Combined)</div>
-        </div>
-        <div className="text-center">
-          <div className="text-lg font-bold text-orange-400">{evalObj.combined_engagement?.toFixed(1)}</div>
-          <div className="text-xs text-slate-400">Engagement (Combined)</div>
-        </div>
-        <div className="text-center">
-          <div className="text-lg font-bold text-orange-400">{evalObj.combined_brand_alignment?.toFixed(1)}</div>
-          <div className="text-xs text-slate-400">Brand Alignment (Combined)</div>
-        </div>
-        <div className="text-center">
-          <div className="text-lg font-bold text-orange-400">{evalObj.combined_authenticity?.toFixed(1)}</div>
-          <div className="text-xs text-slate-400">Authenticity (Combined)</div>
-        </div>
-      </div>
-      <div className="flex flex-wrap justify-center gap-6 mt-4">
-        <div className="text-center">
-          <div className="text-xl font-bold text-cyan-400">{(evalObj.cumulative_semantic * 100).toFixed(1)}%</div>
-          <div className="text-xs text-slate-400">Cumulative Semantic</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xl font-bold text-orange-400">{evalObj.cumulative_combined?.toFixed(1)}</div>
-          <div className="text-xs text-slate-400">Cumulative Combined</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xl font-bold text-yellow-400">{evalObj.overall?.toFixed(1)}</div>
-          <div className="text-xs text-slate-400">Overall Score</div>
+          <div className="text-lg font-bold text-pink-400 mt-1">{typeof evalObj.sentiment_authenticity === 'number' ? (evalObj.sentiment_authenticity * 100).toFixed(1) + '%' : '-'}</div>
+          <div className="text-xs text-slate-400">Authenticity (Sentiment)</div>
         </div>
       </div>
     </div>

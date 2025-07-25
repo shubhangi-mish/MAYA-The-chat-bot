@@ -1,5 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Save, Copy, RotateCcw, FileText, CheckCircle } from 'lucide-react';
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const PROMPT_ID = 'default';
 
@@ -52,6 +64,10 @@ BRAND VOICE:
   const [showImprove, setShowImprove] = useState(false);
   const [improvedPrompt, setImprovedPrompt] = useState('');
   const [improveReason, setImproveReason] = useState('');
+  const [evalResults, setEvalResults] = useState<any[]>([]);
+  const [evalRecommendation, setEvalRecommendation] = useState('');
+  const [evalAvgScore, setEvalAvgScore] = useState<number | null>(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
 
   // Fetch prompt history and scores
   useEffect(() => {
@@ -164,6 +180,23 @@ BRAND VOICE:
     navigator.clipboard.writeText(text);
   };
 
+  const TEST_SCENARIOS = [
+    // Example test scenarios (should match your real ones)
+    {
+      name: 'Morning Routine Inquiry',
+      user_message: 'Hey Maya! Can you tell me about your morning routine? I\'m trying to start my day more mindfully.',
+      expected_themes: ['yoga', 'mindfulness', 'sustainable practices', 'personal experience'],
+      conversation_history: []
+    },
+    {
+      name: 'Vegan Recipe Request',
+      user_message: 'I\'m new to plant-based eating. Could you share a simple but delicious vegan dinner recipe?',
+      expected_themes: ['plant-based cooking', 'beginner-friendly', 'practical advice', 'encouragement'],
+      conversation_history: []
+    },
+    // Add more scenarios as needed
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -255,41 +288,6 @@ BRAND VOICE:
         </div>
       </div>
 
-      <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
-        <h3 className="text-lg font-semibold text-white mb-2">Prompt History</h3>
-        <ul className="space-y-2">
-          {promptHistory.map((v, i) => (
-            <li key={i} className="bg-slate-800/50 rounded p-3 flex flex-col gap-1">
-              <span className="text-slate-200 text-sm">{v.prompt}</span>
-              <span className="text-xs text-slate-400">{v.reason} ({v.timestamp})</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="bg-slate-700/30 rounded-xl border border-slate-600/50 p-6">
-        <h3 className="text-lg font-semibold text-white mb-2">Prompt Quality</h3>
-        <div className="flex items-center gap-4 mb-2">
-          <span className="text-slate-300">Recent Scores:</span>
-          {promptScores.map((s, i) => (
-            <span key={i} className="px-2 py-1 bg-slate-600/50 text-slate-200 rounded text-xs">{s.toFixed(1)}</span>
-          ))}
-        </div>
-        {qualityStatus && (
-          <div className="text-slate-200 text-sm mb-2">
-            Average: <span className="font-bold">{qualityStatus.average.toFixed(1)}</span> &nbsp;|&nbsp;
-            Threshold: <span className="font-bold">{qualityStatus.threshold}</span> &nbsp;|&nbsp;
-            {qualityStatus.degraded ? <span className="text-red-400 font-bold">Quality Degraded</span> : <span className="text-green-400 font-bold">OK</span>}
-          </div>
-        )}
-        {qualityStatus?.degraded && (
-          <button
-            className="px-4 py-2 bg-orange-500 text-white rounded font-semibold mt-2"
-            onClick={handleReflect}
-          >
-            Suggest Improved Prompt (Reflection)
-          </button>
-        )}
-      </div>
       {showImprove && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-slate-800 rounded-xl p-8 w-full max-w-lg space-y-4 border border-slate-700 shadow-lg">
